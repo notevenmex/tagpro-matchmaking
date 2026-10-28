@@ -80,6 +80,21 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .btn:hover{background:var(--line)}
 .or{color:var(--muted);font-size:11px;padding-top:30px}
 .formmsg{font-size:12px;color:var(--muted);text-align:center;margin-top:10px;min-height:1.5em}
+.livem{background:var(--panel);border-radius:6px;padding:16px 18px;margin-top:18px}
+.livem h2{font-family:var(--display);font-weight:700;font-size:24px;margin:0 0 10px}
+.livem .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.livem .lm{background:var(--panel-2);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.livem .lm .pic{position:relative;aspect-ratio:16/9;background:#000}
+.livem .lm .pic img,.livem .lm .pic svg{display:block;width:100%;height:100%;object-fit:cover}
+.livem .lm .pic .tbd{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px}
+.livem .lm .pic .st{position:absolute;left:8px;top:8px;display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.65);color:#fff;border-radius:999px;padding:3px 10px;font-size:12px}
+.livem .lm .body{padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.livem .lm .top{display:flex;align-items:baseline;gap:8px}
+.livem .lm .top b{font-family:var(--display);font-size:20px}
+.livem .lm .top .elo{margin-left:auto;font-family:var(--display);font-weight:700;font-size:20px}
+.livem .lm .top .elo small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--muted)}
+.livem .lm .teams{display:grid;grid-template-columns:1fr 1fr;gap:8px;color:var(--muted)}
+.livem .lm .teams div b{display:block;font-size:12px}
 .qpanel{background:var(--panel);border-radius:6px;padding:16px 18px;margin-top:40px;display:grid;grid-template-columns:auto 1fr auto;gap:6px 22px;align-items:center}
 .qpanel h2{font-family:var(--display);font-weight:700;font-size:24px;margin:0;grid-column:1/-1}
 .qpanel .count{font-family:var(--display);font-weight:700;font-size:44px;line-height:1}
@@ -379,6 +394,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
     <p class="note" id="login-note"></p>
     <div class="auth" id="auth"></div>
     <section class="qpanel" id="qpanel" aria-live="polite" hidden></section>
+    <section class="livem" id="livem" hidden></section>
     <div class="glance">
       <section><h2>Top of the ladder</h2><ol id="g-players"></ol></section>
       <section><h2>Top-rated maps</h2><ol id="g-maps"></ol></section>
@@ -793,7 +809,24 @@ setInterval(()=>{
 },250);
 
 /* ---------- home queue panel ---------- */
+// every match from the draft until its score is in: map, average Elo and the teams so far
+function renderLiveMatches(){
+  const box=$("#livem"), list=(PLAY&&PLAY.live)||[];
+  box.hidden=!list.length; if(!list.length){ box.replaceChildren(); return; }
+  const label={drafting:"Drafting",map_veto:"Map veto",server_vote:"Server vote",awaiting_group:"Starting",in_progress:"Live",disputed:"Score disputed"};
+  box.replaceChildren(h("h2",{},`Ongoing matches (${list.length})`),h("div",{class:"grid"},...list.map(m=>{
+    const pic=h("div",{class:"pic"}); if(m.map) pic.append(mapImg(m.map)); else pic.append(h("span",{class:"tbd"},"Map not picked yet"));
+    pic.append(h("span",{class:"st"},m.status==="in_progress"?h("span",{class:"live-dot"}):null,label[m.status]||m.status));
+    const team=t=>h("div",{},h("b",{class:"team-"+t},`${teamName(t)}${m.teams[t].avg_elo!=null?" · "+m.teams[t].avg_elo:""}`),
+      m.teams[t].players.length?m.teams[t].players.join(", "):"Picking…");
+    return h("article",{class:"lm","aria-label":`Match ${m.id}`},pic,h("div",{class:"body"},
+      h("div",{class:"top"},h("b",{},m.map||"Map veto pending"),h("span",{class:"elo",title:"Average Elo of all 8 players"},m.avg_elo??"–",h("small",{}," avg Elo"))),
+      h("div",{class:"sub",style:"color:var(--muted)"},`Match #${m.id}${m.server?" · "+m.server:""}`),
+      h("div",{class:"teams"},team("red"),team("blue"))));
+  })));
+}
 function renderQueuePanel(){
+  renderLiveMatches();
   const box=$("#qpanel"), P=PLAY; if(!P){ box.hidden=true; return; }
   const n=P.queue.length, need=P.size-n, me=ME.player&&ME.player.name;
   const status = P.in_queue ? h("span",{},"You’re in the queue. Time searching: ",h("span",{"data-since":P.queued_at},clock(nowS()-P.queued_at)))
@@ -808,7 +841,7 @@ function renderQueuePanel(){
     h("div",{},h("div",{class:"qpips","aria-hidden":"true"},...Array.from({length:P.size},(_,i)=>h("i",{class:i<n?"on":null}))),
       h("div",{class:"sub"},status),
       n?h("div",{class:"who",style:"margin-top:8px"},...P.queue.map(x=>h("span",{class:x===me?"me":null},x))):null),
-    btn);
+    btn||"");  // replaceChildren would print a null as "null"
   box.hidden=false;
 }
 
