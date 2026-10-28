@@ -80,6 +80,19 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .btn:hover{background:var(--line)}
 .or{color:var(--muted);font-size:11px;padding-top:30px}
 .formmsg{font-size:12px;color:var(--muted);text-align:center;margin-top:10px;min-height:1.5em}
+.qpanel{background:var(--panel);border-radius:6px;padding:16px 18px;margin-top:40px;display:grid;grid-template-columns:auto 1fr auto;gap:6px 22px;align-items:center}
+.qpanel h2{font-family:var(--display);font-weight:700;font-size:24px;margin:0;grid-column:1/-1}
+.qpanel .count{font-family:var(--display);font-weight:700;font-size:44px;line-height:1}
+.qpanel .sub{color:var(--muted);font-size:14px}
+.qpanel .count small{font-size:20px;color:var(--muted)}
+.qpanel .who{display:flex;flex-wrap:wrap;gap:6px;font-size:13px;color:var(--muted)}
+.qpanel .who span{background:var(--panel-2);color:var(--text);border-radius:999px;padding:3px 10px}
+.qpanel .who span.me{outline:1px solid var(--text)}
+.qpanel .qpips{display:flex;gap:4px;margin-bottom:8px}
+.qpanel .qpips i{width:22px;height:6px;border-radius:3px;background:var(--panel-2)}
+.qpanel .qpips i.on{background:var(--team-red)}
+.qpanel .btn{width:auto;margin:0;padding:7px 18px}
+@media (max-width:560px){.qpanel{grid-template-columns:auto 1fr}.qpanel .btn{grid-column:1/-1}}
 .glance{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:40px}
 .glance section{background:var(--panel);border-radius:6px;padding:16px 18px}
 .glance h2{font-family:var(--display);font-weight:700;font-size:24px;margin:0 0 8px}
@@ -354,6 +367,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   <section class="view" id="v-home">
     <p class="note" id="login-note"></p>
     <div class="auth" id="auth"></div>
+    <section class="qpanel" id="qpanel" aria-live="polite" hidden></section>
     <div class="glance">
       <section><h2>Top of the ladder</h2><ol id="g-players"></ol></section>
       <section><h2>Top-rated maps</h2><ol id="g-maps"></ol></section>
@@ -716,6 +730,7 @@ function matchFoundAlert(){
 
 /* countdowns: any element with data-deadline is refreshed here */
 const fmt=s=>{s=Math.max(0,Math.ceil(s));return s>=60?`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`:String(s)};
+const clock=s=>{s=Math.max(0,Math.floor(s));return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`}; // time spent, always m:ss
 setInterval(()=>{
   const t=nowS();
   document.querySelectorAll("[data-deadline]").forEach(el=>{
@@ -724,11 +739,32 @@ setInterval(()=>{
     else if(el.dataset.kind==="ring"){ el.style.strokeDashoffset=String(100-100*left/total); el.closest(".ring").classList.toggle("low",low); }
     else { el.textContent=fmt(left); el.classList.toggle("low",low&&el.classList.contains("secs")); }
   });
-  document.querySelectorAll("[data-since]").forEach(el=>{el.textContent=fmt(t-+el.dataset.since)});
+  document.querySelectorAll("[data-since]").forEach(el=>{el.textContent=clock(t-+el.dataset.since)});
 },250);
+
+/* ---------- home queue panel ---------- */
+function renderQueuePanel(){
+  const box=$("#qpanel"), P=PLAY; if(!P){ box.hidden=true; return; }
+  const n=P.queue.length, need=P.size-n, me=ME.player&&ME.player.name;
+  const status = P.in_queue ? h("span",{},"You’re in the queue. Time searching: ",h("span",{"data-since":P.queued_at},clock(nowS()-P.queued_at)))
+    : n ? `${need} more player${need===1?"":"s"} needed for a match.` : "Nobody is queued right now. Be the first.";
+  let btn=null;
+  const busy=P.lobby&&LIVE.includes(P.lobby.status)&&!PLAYED.includes(P.lobby.status);
+  const locked=(P.banned_until&&P.banned_until>nowS())||P.queue_block;
+  if(P.in_queue) btn=h("button",{class:"btn",onclick:()=>playAct("/api/queue","DELETE")},"Leave queue");
+  else if(ME.player&&!busy&&!locked) btn=h("button",{class:"btn",onclick:()=>playAct("/api/queue")},"Find match");
+  box.replaceChildren(h("h2",{},"Ranked queue"),
+    h("div",{class:"count"},String(n),h("small",{},` / ${P.size}`)),
+    h("div",{},h("div",{class:"qpips","aria-hidden":"true"},...Array.from({length:P.size},(_,i)=>h("i",{class:i<n?"on":null}))),
+      h("div",{class:"sub"},status),
+      n?h("div",{class:"who",style:"margin-top:8px"},...P.queue.map(x=>h("span",{class:x===me?"me":null},x))):null),
+    btn);
+  box.hidden=false;
+}
 
 /* ---------- queue dock ---------- */
 function renderDock(){
+  renderQueuePanel();
   const d=$("#dock"), P=PLAY; if(!P){d.hidden=true;return}
   d.replaceChildren(); d.hidden=false;
   const L=P.lobby, n=P.queue.length;
@@ -759,7 +795,7 @@ function renderDock(){
     return;
   }
   if(P.in_queue){
-    d.append(h("span",{class:"live-dot"}),info("Searching…",`${n}/${P.size} in queue · `,h("span",{"data-since":P.queued_at},fmt(nowS()-P.queued_at))),pips,acts);
+    d.append(h("span",{class:"live-dot"}),info("Searching…",`${n}/${P.size} in queue · `,h("span",{"data-since":P.queued_at},clock(nowS()-P.queued_at))),pips,acts);
     if(P.dev) acts.append(h("button",{class:"pill ghost",title:"Local testing only",onclick:()=>playAct("/api/dev/fill-queue")},"Fill with bots"));
     acts.append(h("button",{class:"pill",onclick:()=>playAct("/api/queue","DELETE")},"Leave"));
     return;
