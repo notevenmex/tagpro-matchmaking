@@ -121,7 +121,12 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 @media (max-width:560px){.qpanel{grid-template-columns:auto 1fr}.qpanel .btn{grid-column:1/-1}}
 .glance{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:40px}
 .glance section{background:var(--panel);border-radius:6px;padding:16px 18px}
-.glance h2{font-family:var(--display);font-weight:700;font-size:24px;margin:0 0 8px}
+.glance h2{font-family:var(--display);font-weight:700;font-size:24px;margin:0 0 8px;display:flex;align-items:baseline;gap:10px}
+.glance h2 a{color:inherit;text-decoration:none}
+.glance h2 a:hover{color:var(--red)}
+.glance h2 a.all{margin-left:auto;font-family:var(--body);font-weight:500;font-size:13px;color:var(--muted)}
+.glance .glink{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.glance .glink:hover>span:not(.sub){text-decoration:underline}
 .glance ol{margin:0;padding:0;list-style:none}
 .glance li{display:flex;align-items:center;gap:10px;padding:5px 0;border-top:1px solid var(--line)}
 .glance li:first-child{border-top:0}
@@ -439,8 +444,8 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
     <section class="qpanel" id="qpanel" aria-live="polite" hidden></section>
     <section class="livem" id="livem" hidden></section>
     <div class="glance">
-      <section><h2>Top of the ladder</h2><ol id="g-players"></ol></section>
-      <section><h2>Top-rated maps</h2><ol id="g-maps"></ol></section>
+      <section><h2><a href="#top100" data-go="top100">Top of the ladder</a><a class="all" href="#top100" data-go="top100">See all</a></h2><ol id="g-players"></ol></section>
+      <section><h2><a href="#ratings" data-go="ratings">Top-rated maps</a><a class="all" href="#ratings" data-go="ratings">See all</a></h2><ol id="g-maps"></ol></section>
     </div>
   </section>
 
@@ -891,11 +896,14 @@ async function renderMapAdmin(){
 /* ---------- home glance ---------- */
 function renderGlance(){
   const gp=$("#g-players"); gp.replaceChildren();
-  BOARD.slice(0,5).forEach(p=>gp.append(h("li",{},badge(p.elo,28),h("span",{},p.name),h("span",{class:"sub"},"#"+p.rank))));
+  // each row opens the player's profile; each map row goes to the Ratings page
+  BOARD.slice(0,5).forEach(p=>gp.append(h("li",{},h("button",{class:"glink",onclick:()=>openPlayer(p.name)},badge(p.elo,28),h("span",{},p.name),h("span",{class:"sub"},"#"+p.rank)))));
   if(!BOARD.length) gp.append(h("li",{class:"sub"},"Nobody ranked yet."));
   const gm=$("#g-maps"); gm.replaceChildren();
-  const total=m=>m.votes.reduce((s,v)=>s+v.score,0);
-  [...MAPS].sort((a,b)=>total(b)-total(a)).slice(0,5).forEach(m=>gm.append(h("li",{},h("span",{},m.name),h("span",{class:"sub"},minus(total(m))))));
+  // same order as the Ratings page: best average first
+  [...MAPS].sort((a,b)=>(avgRating(b)??-99)-(avgRating(a)??-99)||b.votes.length-a.votes.length||a.name.localeCompare(b.name)).slice(0,5)
+    .forEach(m=>{ const a=avgRating(m); gm.append(h("li",{},h("button",{class:"glink",onclick:()=>go("ratings")},h("span",{},m.name),
+      h("span",{class:"sub"},a==null?"No ratings":`${minus(a.toFixed(1))} · ${m.votes.length} rating${m.votes.length===1?"":"s"}`)))); });
 }
 
 /* ---------- report a match (admins) ---------- */
@@ -996,8 +1004,7 @@ function renderLiveMatches(){
       h("div",{class:"top"},h("b",{},m.map||"Map veto pending"),h("span",{class:"elo",title:"Average Elo of all 8 players"},m.avg_elo??"–",h("small",{}," avg Elo"))),
       h("div",{class:"sub",style:"color:var(--muted)"},`Match #${m.id}${m.server?" · "+m.server:""}`),
       h("div",{class:"teams"},team("red"),team("blue")),
-      m.group_link?h("div",{class:"spec"},h("a",{class:"pill",href:m.group_link,target:"_blank",rel:"noopener"},"Spectate"),
-        h("span",{},"Spectators: no chat during the game, or the bot removes you.")):null));
+      m.group_link?h("div",{class:"spec"},h("a",{class:"pill",href:m.group_link,target:"_blank",rel:"noopener"},"Spectate")):null));
   })));
 }
 function renderQueuePanel(){
