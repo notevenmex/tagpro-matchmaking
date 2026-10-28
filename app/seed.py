@@ -44,10 +44,8 @@ def run():
         if db.scalar(select(Season).limit(1)):
             print("Database already has a season; nothing to do.")
             return
-        s = Season(number=4, is_active=True,
-                   banner="Welcome to Season 4, where the points aren’t doubled and no one will get to a 50.\n"
-                          "Map votes have been reset! Be sure to submit yours!",
-                   banner_note="You can now lower a map’s odds by giving it a negative rating.")
+        # no announcement banner until an admin posts one (Report tab)
+        s = Season(number=4, is_active=True, banner="", banner_note="")
         db.add(s)
         db.flush()
 
