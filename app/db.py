@@ -212,6 +212,23 @@ class ScoreReport(Base):
     reported_at: Mapped[float] = mapped_column(Float)
 
 
+class VoiceRoom(Base):
+    """A temporary Discord voice channel for one team of a lobby (see voice.py).
+
+    channel_id is empty while the bot is creating it. ended_at is set when the lobby is over; the
+    channel is deleted a grace period later, and deleted is set so it isn't made again.
+    """
+    __tablename__ = "voice_rooms"
+    __table_args__ = (UniqueConstraint("lobby_id", "team"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lobby_id: Mapped[int] = mapped_column(ForeignKey("lobbies.id"))
+    team: Mapped[str] = mapped_column(String(4))
+    channel_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[float] = mapped_column(Float)
+    ended_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
 def get_db():
     db = SessionLocal()
     try:
