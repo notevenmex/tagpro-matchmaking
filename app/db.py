@@ -6,10 +6,21 @@ from sqlalchemy import (JSON, Boolean, DateTime, Float, ForeignKey, Integer, Str
                         UniqueConstraint, create_engine)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./rankedpugs.db")
+
+
+def database_url(raw: str) -> str:
+    """Use the psycopg 3 driver for Postgres URLs written the way Railway and Heroku hand them out."""
+    for prefix in ("postgres://", "postgresql://"):
+        if raw.startswith(prefix):
+            return "postgresql+psycopg://" + raw[len(prefix):]
+    return raw
+
+
+DATABASE_URL = database_url(os.getenv("DATABASE_URL", "sqlite:///./rankedpugs.db"))
 engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+    pool_pre_ping=True,  # Postgres drops idle connections; reconnect instead of failing a request
 )
 SessionLocal = sessionmaker(engine, expire_on_commit=False)
 

@@ -60,6 +60,8 @@ pytest -q
 
 ## Deploying
 
-Any host that runs a Python web app works (Railway, Render, Fly.io, a VPS). Use Postgres via
-`DATABASE_URL`, set `HTTPS_ONLY=1`, keep `DEV_LOGIN=0`, and start with
-`uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+The site runs on [Railway](https://railway.com) with Postgres at https://tagpropugs.com. The
+`Dockerfile` and `railway.json` hold the build and start settings; the account, domain, secret and
+Discord steps are in [docs/deploy-railway.md](docs/deploy-railway.md).
+
+Run a single replica with one worker: the queue lock and live-update WebSockets live in memory.
