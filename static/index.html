@@ -219,6 +219,21 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .slot{display:flex;gap:6px;margin-top:6px}
 .slot input{flex:1;min-width:0}
 .report input,.report select{font:inherit;font-size:14px;background:var(--input);color:var(--text);border:0;padding:4px 6px}
+.announce-admin textarea,.announce-admin input{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:14px;background:var(--input);color:var(--text);border:0;border-radius:4px;padding:8px;margin-bottom:8px;resize:vertical}
+.announce-admin .tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.announce-admin .btn{width:auto;margin:0;padding:7px 18px}
+.ratings h2{margin-bottom:6px}
+.rrow{display:grid;grid-template-columns:28px 64px 1fr auto auto;gap:12px;align-items:center;border-top:1px solid var(--line);padding:8px 0}
+.rrow:first-of-type{border-top:0}
+.rrow .rank{color:var(--muted);font-size:14px}
+.rrow .thumb img,.rrow .thumb svg{display:block;width:64px;height:48px;object-fit:contain;background:#000;border-radius:3px}
+.rrow .rname{display:flex;flex-direction:column}
+.rrow .rname .sub,.rrow .mine .sub{color:var(--muted);font-size:12px}
+.rrow .avg{font-family:var(--display);font-weight:700;font-size:26px;min-width:52px;text-align:right}
+.rrow .mine{display:flex;flex-direction:column;gap:2px;font-size:12px}
+@media (max-width:560px){.rrow{grid-template-columns:22px 48px 1fr auto}.rrow .thumb img,.rrow .thumb svg{width:48px;height:36px}.rrow .mine{grid-column:3/-1;flex-direction:row;align-items:center;gap:8px}}
+.rate-after{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--panel-2);border-radius:12px;padding:10px 14px;margin:0 0 14px;font-size:14px}
+.rate-after select{font:inherit;background:var(--input);color:var(--text);border:0;border-radius:6px;padding:4px 6px}
 .meta-row{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px;font-size:14px}
 .meta-row label{display:flex;align-items:center;gap:6px}
 .report .btn{width:auto;padding:7px 18px}
@@ -386,6 +401,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   <a href="#home" data-go="home">Home</a>
   <a href="#top100" data-go="top100">Top 100</a>
   <a href="#maps" data-go="maps">Maps</a>
+  <a href="#ratings" data-go="ratings">Ratings</a>
   <a href="#rules" data-go="rules">Rules</a>
   <a href="#report" data-go="report" id="nav-report" hidden>Report</a>
   <input class="search" id="search" type="search" placeholder="Search…" aria-label="Search players">
@@ -421,11 +437,17 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
     <div class="maps" id="maps"></div>
   </section>
 
+  <section class="view" id="v-ratings" hidden>
+    <p class="note">How players rate each map in the rotation, from −5 to 10. Rate maps here or after a match. Ratings don’t change which maps come up in the veto.</p>
+    <div class="report ratings" id="ratings"></div>
+  </section>
+
   <section class="view" id="v-rules" hidden>
     <article class="rules" id="rules" aria-live="polite"><p class="draft">Loading the rules…</p></article>
   </section>
 
   <section class="view" id="v-report" hidden>
+    <form class="report announce-admin" id="announce-admin" style="margin-bottom:18px"></form>
     <div class="report title-admin" id="title-admin" style="margin-bottom:18px"></div>
     <div class="report" id="disputes" style="margin-bottom:18px">
       <h2>Disputed scores</h2>
@@ -483,7 +505,9 @@ const POSITIONS = [["offense","Offense"],["defense","Defense"],["flex","Flex (ei
 let ME={logged_in:false}, BOARD=[], MAPS=[];
 
 /* ---------- season banner ---------- */
+let SEASON=null;
 function renderSeason(s){
+  SEASON=s;
   $("#season-pill").textContent = "Season "+s.number; SEASON_NO=s.number;
   const b=$("#banner"); b.replaceChildren();
   s.banner.split("\n").forEach((line,i)=>{ if(i) b.append(h("br")); b.append(line); });
@@ -580,6 +604,57 @@ async function openPlayer(name){
     $("#pd-recent").replaceChildren(...p.recent.map(m=>h("li",{},h("span",{},`${m.won?"Won":"Lost"} on ${m.map||"unknown map"}`),m.change==null?h("span",{class:"sub"},"placement"):h("span",{class:m.change>=0?"up":"down"},(m.change>=0?"+":"")+minus(m.change)))));
     if(!dlg.open) dlg.showModal();
   }catch(err){ alert(err.message); }
+}
+
+/* ---------- announcement banner (admins) ---------- */
+function renderAnnounceAdmin(){
+  const f=$("#announce-admin"); if(!SEASON) return;
+  const msg=h("span",{class:"formmsg","aria-live":"polite"});
+  const main=h("textarea",{rows:"3",maxlength:"500","aria-label":"Announcement text",placeholder:"e.g. Season 5 starts Friday! Placements reset."}); main.value=SEASON.banner;
+  const note=h("input",{type:"text",maxlength:"500","aria-label":"Highlighted part",placeholder:"Optional highlighted part, shown in yellow",value:SEASON.banner_note});
+  const save=async(banner,banner_note,ok)=>{ msg.textContent="Saving…"; msg.classList.remove("err");
+    try{ renderSeason(await api("/api/admin/announcement",{method:"PUT",body:JSON.stringify({banner,banner_note})})); renderAnnounceAdmin(); toast(ok); }
+    catch(err){ msg.textContent=err.message; msg.classList.add("err"); } };
+  f.onsubmit=e=>{ e.preventDefault(); save(main.value,note.value,"Announcement posted."); };
+  const live=!!(SEASON.banner||SEASON.banner_note);
+  f.replaceChildren(h("h2",{},"Announcement banner"),
+    h("p",{class:"sub",style:"margin:0 0 8px;font-size:13px;color:var(--muted)"},live?"This is showing in the green banner on every page.":"No announcement is up, so the green banner is hidden. Post one to show it on every page."),
+    main, note,
+    h("div",{class:"tools"},h("button",{class:"btn"},live?"Update":"Post"),
+      live?h("button",{class:"btn",type:"button",onclick:()=>{ if(confirm("Take the announcement down?")) save("","","Announcement removed."); }},"Remove"):null, msg));
+}
+
+/* ---------- map ratings ---------- */
+const avgRating=m=>m.votes.length?m.votes.reduce((s,v)=>s+v.score,0)/m.votes.length:null;
+async function rateMap(id,score){ await api(`/api/maps/${id}/vote`,{method:"PUT",body:JSON.stringify({score})}); MAPS=await api("/api/maps"); renderMaps(); renderGlance(); if(current==="ratings") renderRatings(); }
+function ratingSelect(m,onDone){
+  const canVote=ME.logged_in&&ME.player;
+  const sel=h("select",{"aria-label":`Your rating for ${m.name}`,disabled:!canVote},h("option",{value:""},canVote?"Not rated":"Log in to rate"));
+  for(let i=10;i>=-5;i--){ const o=h("option",{value:String(i)},minus(i)); if(m.my_vote===i) o.selected=true; sel.append(o); }
+  sel.addEventListener("change",async e=>{ sel.disabled=true; try{ await rateMap(m.id,e.target.value===""?null:+e.target.value); onDone&&onDone(); }catch(err){ toast(err.message); sel.disabled=false; } });
+  return sel;
+}
+function renderRatings(){
+  const box=$("#ratings");
+  const rows=[...MAPS].sort((a,b)=>(avgRating(b)??-99)-(avgRating(a)??-99)||b.votes.length-a.votes.length||a.name.localeCompare(b.name));
+  if(!rows.length){ box.replaceChildren(h("p",{class:"empty"},"No maps are in the rotation yet.")); return; }
+  box.replaceChildren(h("h2",{},"Map ratings"),...rows.map((m,i)=>{ const a=avgRating(m);
+    return h("div",{class:"rrow"},h("span",{class:"rank"},String(i+1)+"."),h("div",{class:"thumb"},mapImg(m.name)),
+      h("div",{class:"rname"},h("b",{},m.name),h("span",{class:"sub"},`${m.votes.length} rating${m.votes.length===1?"":"s"}`)),
+      h("div",{class:"avg",title:"Average rating"},a==null?"–":minus(a.toFixed(1))),
+      h("label",{class:"mine"},h("span",{class:"sub"},"Yours"),ratingSelect(m)));
+  }));
+}
+// asked once at the end of each match; skipping is remembered per match in this browser
+function rateAfterMatch(L){
+  const m=MAPS.find(x=>x.name===L.map); if(!m||!L.me||!ME.player) return null;
+  let key="rated-lobby-"+L.id, done=null; try{ done=localStorage.getItem(key); }catch{}
+  const remember=v=>{ try{ localStorage.setItem(key,v); }catch{} };
+  if(done==="skip") return null;
+  if(done==="rated") return h("div",{class:"rate-after"},h("span",{class:"muted"},`Thanks! You rated ${m.name} ${m.my_vote==null?"":minus(m.my_vote)}.`));
+  return h("div",{class:"rate-after"},h("span",{},`How was ${m.name}? Rate it (optional).`),
+    ratingSelect(m,()=>{ remember("rated"); renderLobby(); }),
+    h("button",{class:"pill ghost",onclick:()=>{ remember("skip"); renderLobby(); }},"Skip"));
 }
 
 /* ---------- season titles and rewards ---------- */
@@ -1023,7 +1098,7 @@ function viewMatch(L){
   const sub={in_progress:"Good luck, have fun.",disputed:"The captains reported different scores.",finished:"Thanks for playing."}[L.status]||"Teams and map are locked in.";
   return [
     popHead(L,STEP[L.status],sub),
-    h("div",{class:"pop-body"},hero,scoreBox(L),h("div",{class:"teams2"},team("red"),team("blue")),L.me&&!["disputed","finished"].includes(L.status)&&group),
+    h("div",{class:"pop-body"},hero,scoreBox(L),L.status==="finished"&&rateAfterMatch(L),h("div",{class:"teams2"},team("red"),team("blue")),L.me&&!["disputed","finished"].includes(L.status)&&group),
     h("div",{class:"pop-foot"},h("button",{class:"pill",onclick:dismissLobby},"Close")),
   ];
 }
@@ -1164,14 +1239,15 @@ function editRules(){
 }
 
 /* ---------- routing ---------- */
-const VIEWS=["home","top100","maps","rules","report"]; let current="home";
+const VIEWS=["home","top100","maps","ratings","rules","report"]; let current="home";
 function go(v,push=true){
   if(!VIEWS.includes(v) || (v==="report" && !ME.is_admin)) v="home";
   current=v;
   VIEWS.forEach(x=>{$("#v-"+x).hidden=x!==v});
   document.querySelectorAll("nav a").forEach(a=>{ if(a.dataset.go===v)a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
-  document.title="Ranked PUGs – "+({home:"Home",top100:"Leaderboard",maps:"Maps",rules:"Rules",report:"Report a match"})[v];
-  if(v==="report"){ setupReport(); renderDisputes(); renderTitleAdmin(); }
+  document.title="Ranked PUGs – "+({home:"Home",top100:"Leaderboard",maps:"Maps",ratings:"Map ratings",rules:"Rules",report:"Report a match"})[v];
+  if(v==="report"){ setupReport(); renderDisputes(); renderTitleAdmin(); renderAnnounceAdmin(); }
+  if(v==="ratings") renderRatings();
   if(push && location.hash!=="#"+v) history.replaceState(null,"","#"+v);
 }
 document.addEventListener("click",e=>{const t=e.target.closest("[data-go]");if(t){e.preventDefault();go(t.dataset.go)}});

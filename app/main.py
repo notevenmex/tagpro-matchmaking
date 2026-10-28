@@ -60,6 +60,20 @@ def season(db: Session = Depends(get_db)):
     return {"number": s.number, "banner": s.banner, "banner_note": s.banner_note}
 
 
+class AnnouncementIn(BaseModel):
+    banner: str = Field(default="", max_length=500)       # main text; a new line becomes a line break
+    banner_note: str = Field(default="", max_length=500)  # highlighted part, shown in yellow
+
+
+@app.put("/api/admin/announcement")
+def set_announcement(body: AnnouncementIn, _: str = Depends(auth.require_admin), db: Session = Depends(get_db)):
+    """The green banner under the header. Both fields empty hides it."""
+    s = active_season(db)
+    s.banner, s.banner_note = body.banner.strip(), body.banner_note.strip()
+    db.commit()
+    return {"number": s.number, "banner": s.banner, "banner_note": s.banner_note}
+
+
 @app.get("/api/me")
 def me(request: Request, db: Session = Depends(get_db)):
     did = request.session.get("discord_id")
