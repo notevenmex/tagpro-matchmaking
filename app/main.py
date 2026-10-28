@@ -13,7 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, play
 from .db import Base, Map, MapVote, Match, MatchPlayer, Player, Rating, Season, engine, get_db
-from .rating import MIN_GAMES, START_ELO, points, team_delta
+from .rating import LEVELS, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, rating_out, record_match
 
 SESSION_SECRET = os.getenv("SESSION_SECRET")
 if not SESSION_SECRET:
@@ -40,16 +40,6 @@ def active_season(db: Session) -> Season:
 
 def find_player(db: Session, name: str) -> Player | None:
     return db.scalar(select(Player).where(func.lower(Player.tagpro_name) == name.strip().lower()))
-
-
-def get_rating(db: Session, player: Player, season: Season, position: str) -> Rating:
-    r = db.scalar(select(Rating).where(Rating.player_id == player.id, Rating.season_id == season.id,
-                                       Rating.position == position))
-    if not r:
-        r = Rating(player_id=player.id, season_id=season.id, position=position, elo=START_ELO, games=0, wins=0)
-        db.add(r)
-        db.flush()
-    return r
 
 
 def player_out(p: Player) -> dict:
@@ -106,8 +96,14 @@ def leaderboard(limit: int = 100, db: Session = Depends(get_db)):
         .where(Rating.season_id == s.id, Rating.games >= MIN_GAMES)
         .order_by(Rating.elo.desc()).limit(min(max(limit, 1), 500))
     ).all()
-    return [{**player_out(p), "rank": i + 1, "position": r.position, "rating": points(r.elo),
-             "games": r.games, "wins": r.wins} for i, (r, p) in enumerate(rows)]
+    return [{**player_out(p), **rating_out(r), "rank": i + 1} for i, (r, p) in enumerate(rows)]
+
+
+@app.get("/api/levels")
+def levels():
+    """The rating rules, so the front-end can draw level badges and explain them."""
+    return {"start_elo": START_ELO, "k": K, "placement_games": PLACEMENT_GAMES,
+            "levels": [{"level": n, "min_elo": low} for n, low in LEVELS]}
 
 
 @app.get("/api/players")
@@ -124,17 +120,19 @@ def player_detail(name: str, db: Session = Depends(get_db)):
     if not p:
         raise HTTPException(404, f"No player named “{name}”.")
     s = active_season(db)
-    ratings = db.scalars(select(Rating).where(Rating.player_id == p.id, Rating.season_id == s.id)).all()
+    r = db.scalar(select(Rating).where(Rating.player_id == p.id, Rating.season_id == s.id))
+    placed = bool(r) and r.games >= PLACEMENT_GAMES
     recent = db.execute(
         select(MatchPlayer, Match, Map.name).join(Match, MatchPlayer.match_id == Match.id)
         .outerjoin(Map, Match.map_id == Map.id).where(MatchPlayer.player_id == p.id)
         .order_by(Match.played_at.desc()).limit(10)
     ).all()
     return {**player_out(p),
-            "ratings": [{"position": r.position, "rating": points(r.elo), "games": r.games, "wins": r.wins}
-                        for r in ratings],
-            "recent": [{"map": mname, "team": mp.team, "won": mp.team == m.winner,
-                        "change": points(mp.elo_after) - points(mp.elo_before), "played_at": m.played_at.isoformat()}
+            "rating": rating_out(r),
+            # Elo changes stay hidden until placements are done, like the Elo itself
+            "recent": [{"map": mname, "team": mp.team, "position": mp.position, "won": mp.team == m.winner,
+                        "change": mp.elo_after - mp.elo_before if placed else None,
+                        "played_at": m.played_at.isoformat()}
                        for mp, m, mname in recent]}
 
 
@@ -203,21 +201,8 @@ def report_match(body: MatchIn, admin_id: str = Depends(auth.require_admin), db:
     if missing:
         raise HTTPException(400, "These players aren’t registered: " + ", ".join(missing))
 
-    entries = [(found[x.tagpro_name], x, get_rating(db, found[x.tagpro_name], s, x.position)) for x in body.players]
-    d_red, d_blue = team_delta([r.elo for _, x, r in entries if x.team == "red"],
-                               [r.elo for _, x, r in entries if x.team == "blue"], body.winner)
-    m = Match(season_id=s.id, map_id=body.map_id, winner=body.winner, reported_by=admin_id)
-    db.add(m)
-    db.flush()
-    changes = []
-    for p, x, r in entries:
-        before = r.elo
-        r.elo += d_red if x.team == "red" else d_blue
-        r.games += 1
-        r.wins += int(x.team == body.winner)
-        db.add(MatchPlayer(match_id=m.id, player_id=p.id, team=x.team, position=x.position,
-                           elo_before=before, elo_after=r.elo))
-        changes.append({"name": p.tagpro_name, "team": x.team, "before": points(before), "after": points(r.elo)})
+    lineup = [(found[x.tagpro_name], x.team, x.position) for x in body.players]
+    m, changes = record_match(db, s, winner=body.winner, lineup=lineup, map_id=body.map_id, reported_by=admin_id)
     db.commit()
     return {"id": m.id, "changes": changes}
 
