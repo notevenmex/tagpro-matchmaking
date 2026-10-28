@@ -260,6 +260,16 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .result{margin-top:14px;font-size:14px}
 .result li{list-style:none}
 .up{color:#4ade80}.down{color:var(--def)}
+.elo-graph{margin:14px 0 0}
+.elo-graph svg{width:100%;height:auto;display:block}
+.elo-graph .grid{stroke:var(--line);stroke-width:1}
+.elo-graph .axis{fill:var(--muted);font-size:10px}
+.elo-graph .line{fill:none;stroke:var(--red);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.elo-graph .area{fill:var(--red-glow);stroke:none}
+.elo-graph .start{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
+.elo-graph .dot{stroke:var(--panel);stroke-width:1.5}
+.elo-graph .dot.w{fill:#4ade80}.elo-graph .dot.l{fill:var(--def)}
+.elo-graph .eg-note{font-size:12px;color:var(--muted);margin:4px 0 0}
 .recent{margin:14px 0 0;padding:0;list-style:none;font-size:13px}
 .recent li{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding:4px 0}
 .empty{text-align:center;color:var(--muted);padding:40px 0}
@@ -501,6 +511,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
     <div class="badge" id="pd-badge"></div>
     <div><h2 id="pd-name"></h2><p id="pd-meta"></p><div class="tags" id="pd-tags"></div></div>
   </div>
+  <div class="elo-graph" id="pd-graph" hidden></div>
   <ul class="recent" id="pd-recent"></ul>
   <form method="dialog"><button class="btn">Close</button></form>
 </dialog>
@@ -616,6 +627,24 @@ function renderBoard(){
     board.append(col);
   }
 }
+// Elo after every match this season, starting from 1000; green and red dots are wins and losses
+function eloGraph(box,hist){
+  box.hidden=!hist||!hist.length; if(box.hidden) return box.replaceChildren();
+  const S="http://www.w3.org/2000/svg", el=(t,a)=>{const e=document.createElementNS(S,t);for(const[k,v]of Object.entries(a))e.setAttribute(k,v);return e};
+  const W=440,H=160,L=36,R=8,T=8,B=18, pts=[1000,...hist.map(g=>g.elo)];
+  const span=Math.max(...pts)-Math.min(...pts), step=[25,50,100,200,250,500].find(s=>span/s<=4)||1000;
+  const lo=Math.floor((Math.min(...pts)-5)/step)*step, hi=Math.ceil((Math.max(...pts)+5)/step)*step;
+  const x=i=>L+(W-L-R)*i/(pts.length-1), y=e=>T+(H-T-B)*(1-(e-lo)/(hi-lo));
+  const svg=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":`Elo over ${hist.length} games this season, from 1000 to ${pts.at(-1)}`});
+  for(let e=lo;e<=hi;e+=step){svg.append(el("line",{class:"grid",x1:L,x2:W-R,y1:y(e),y2:y(e)}));const t=el("text",{class:"axis",x:L-5,y:y(e)+3,"text-anchor":"end"});t.textContent=e;svg.append(t)}
+  if(lo<1000&&hi>1000) svg.append(el("line",{class:"start",x1:L,x2:W-R,y1:y(1000),y2:y(1000)}));
+  const line=pts.map((e,i)=>`${x(i).toFixed(1)},${y(e).toFixed(1)}`).join(" ");
+  svg.append(el("polygon",{class:"area",points:`${x(0)},${H-B} ${line} ${x(pts.length-1)},${H-B}`}),el("polyline",{class:"line",points:line}));
+  if(hist.length<=60) hist.forEach((g,i)=>{const d=el("circle",{class:"dot "+(g.won?"w":"l"),cx:x(i+1),cy:y(g.elo),r:3});const t=el("title",{});t.textContent=`Game ${i+1}: ${g.won?"won":"lost"}, ${g.elo} Elo`;d.append(t);svg.append(d)});
+  const games=el("text",{class:"axis",x:W-R,y:H-4,"text-anchor":"end"});games.textContent=`${hist.length} games`;svg.append(games);
+  const best=Math.max(...pts);
+  box.replaceChildren(svg,h("p",{class:"eg-note"},`This season · peak ${best} Elo`));
+}
 async function openPlayer(name){
   const dlg=$("#player");
   try{
@@ -627,6 +656,7 @@ async function openPlayer(name){
       : r.elo!=null ? `${posLabel(p.position)} · ${r.elo} Elo · ${rec}`
       : `${posLabel(p.position)} · Placements: ${r.placements_left} left · ${rec}`;
     $("#pd-tags").replaceChildren(...titleEls(p.titles));
+    eloGraph($("#pd-graph"),p.history);
     $("#pd-recent").replaceChildren(...p.recent.map(m=>h("li",{},h("span",{},`${m.won?"Won":"Lost"} on ${m.map||"unknown map"}`),m.change==null?h("span",{class:"sub"},"placement"):h("span",{class:m.change>=0?"up":"down"},(m.change>=0?"+":"")+minus(m.change)))));
     if(!dlg.open) dlg.showModal();
   }catch(err){ alert(err.message); }

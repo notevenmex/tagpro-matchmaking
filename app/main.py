@@ -190,8 +190,14 @@ def player_detail(name: str, db: Session = Depends(get_db)):
         .outerjoin(Map, Match.map_id == Map.id).where(MatchPlayer.player_id == p.id)
         .order_by(Match.played_at.desc()).limit(10)
     ).all()
+    season_games = db.execute(
+        select(MatchPlayer.elo_after, MatchPlayer.team, Match.winner).join(Match, MatchPlayer.match_id == Match.id)
+        .where(MatchPlayer.player_id == p.id, Match.season_id == s.id).order_by(Match.id)
+    ).all()
     return {**player_out(p, titles.titles_by_player(db, [p.id])[p.id]),
             "rating": rating_out(r),
+            # Elo after each match this season, for the profile graph; hidden during placements
+            "history": [{"elo": elo, "won": team == winner} for elo, team, winner in season_games] if placed else None,
             # Elo changes stay hidden until placements are done, like the Elo itself
             "recent": [{"map": mname, "team": mp.team, "position": mp.position, "won": mp.team == m.winner,
                         "change": mp.elo_after - mp.elo_before if placed else None,
