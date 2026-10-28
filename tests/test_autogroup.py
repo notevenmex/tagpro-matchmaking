@@ -7,6 +7,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///" + os.path.join(tempfile.mkdte
 os.environ.setdefault("SESSION_SECRET", "test-secret")
 
 import httpx  # noqa: E402
+import pytest  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 
 from app import autogroup, play, seed  # noqa: E402
@@ -15,6 +16,16 @@ from app.discord_bot import DiscordNotifier  # noqa: E402
 from app.tagpro_group import GroupError, group_settings, pick_map, pick_server  # noqa: E402
 
 seed.run()
+
+
+@pytest.fixture(autouse=True)
+def cancel_leftovers():
+    """Don't leave half-finished lobbies behind for the other test files."""
+    yield
+    with SessionLocal() as db:
+        for lobby in db.scalars(select(Lobby).where(Lobby.status != "cancelled")).all():
+            lobby.status = "cancelled"
+        db.commit()
 
 
 def make_lobby(status="awaiting_group") -> int:
@@ -64,7 +75,7 @@ def lobby_and_job(lobby_id):
 
 def test_creates_group_and_dms_captains():
     lid = make_lobby()
-    other = make_lobby(status="drafting")  # not ready yet: left alone
+    other = make_lobby(status="in_progress")  # already has a group: left alone
     creator, notifier = FakeCreator(), FakeNotifier()
     asyncio.run(autogroup.run_once(creator, notifier))
     spec = next(s for s in creator.specs if s.lobby_id == lid)
