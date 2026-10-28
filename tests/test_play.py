@@ -53,7 +53,7 @@ def test_full_match_flow():
     caps = {p["team"]: p["name"] for p in L["players"] if p["is_captain"]}
     # the home page's ongoing matches list sees it, with the captains on their teams and no map yet
     live = next(x for x in cs[0].get("/api/play").json()["live"] if x["id"] == L["id"])
-    assert live["map"] is None and live["avg_elo"] == round(sum(p["elo"] for p in L["players"]) / 8)
+    assert live["map"] is None and live["group_link"] is None and live["avg_elo"] == round(sum(p["elo"] for p in L["players"]) / 8)
     assert live["teams"]["red"]["players"] == [caps["red"]] and live["teams"]["blue"]["players"] == [caps["blue"]]
     by_name = {f"Queuer{i}": c for i, c in enumerate(cs)}
     red, blue = by_name[caps["red"]], by_name[caps["blue"]]
