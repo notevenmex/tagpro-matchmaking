@@ -131,6 +131,13 @@ database. It lives in `mexbot/`, and the full steps are in [mexbot/README.md](..
 - **Database changes:** tables are created on startup, but new columns on existing tables are not
   added automatically. Until we add migrations, a model change that alters an existing table
   needs a manual `ALTER TABLE` (Postgres service → **Data** or **Query**) or a migration step.
+- **Maps and rules:** a fresh database is seeded with the 12 MLTP majors, and admins can edit the
+  Rules page and the map pool on the site. A database seeded before this change keeps the 2017
+  map list until an admin presses **Use MLTP majors**.
+- **If you deployed before alt accounts were added:** `players.discord_id` is no longer unique, and
+  startup won't drop the old constraint. Recreate the database, or run this once in the Postgres
+  service's query tab:
+  `ALTER TABLE players DROP CONSTRAINT players_discord_id_key; CREATE INDEX IF NOT EXISTS ix_players_discord_id ON players (discord_id);`
 - **Backups:** on the Postgres service, open **Backups** and turn on scheduled backups if your plan offers them.
   Otherwise, run `pg_dump` against the database's public URL now and then.
 - **Secrets:** never put real values in `.env.example` or any committed file. If a secret leaks,
