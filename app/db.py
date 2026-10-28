@@ -2,7 +2,7 @@
 import os
 from datetime import datetime, timezone
 
-from sqlalchemy import (JSON, Boolean, DateTime, Float, ForeignKey, Integer, String,
+from sqlalchemy import (JSON, Boolean, DateTime, ForeignKey, Integer, String,
                         UniqueConstraint, create_engine)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
@@ -45,14 +45,13 @@ class Player(Base):
 
 
 class Rating(Base):
-    """One rating per player, per season, per position, so someone can be ranked on O and D."""
+    """One FACEIT-style Elo per player, per season (see rating.py)."""
     __tablename__ = "ratings"
-    __table_args__ = (UniqueConstraint("player_id", "season_id", "position"),)
+    __table_args__ = (UniqueConstraint("player_id", "season_id"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
     season_id: Mapped[int] = mapped_column(ForeignKey("seasons.id"))
-    position: Mapped[str] = mapped_column(String(8))
-    elo: Mapped[float] = mapped_column(Float, default=1500.0)
+    elo: Mapped[int] = mapped_column(Integer, default=1000)
     games: Mapped[int] = mapped_column(Integer, default=0)
     wins: Mapped[int] = mapped_column(Integer, default=0)
 
@@ -92,8 +91,8 @@ class MatchPlayer(Base):
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
     team: Mapped[str] = mapped_column(String(4))
     position: Mapped[str] = mapped_column(String(8))
-    elo_before: Mapped[float] = mapped_column(Float)
-    elo_after: Mapped[float] = mapped_column(Float)
+    elo_before: Mapped[int] = mapped_column(Integer)
+    elo_after: Mapped[int] = mapped_column(Integer)
 
 
 def get_db():

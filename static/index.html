@@ -101,7 +101,8 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .rank{width:26px;text-align:right;color:var(--muted);font-size:16px;flex:none}
 .badge{flex:none;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:500;font-size:28px;
   color:#fff;background:#18181b;border:3px solid var(--tier);box-shadow:0 0 0 2px #18181b inset}
-.who{min-width:0}
+.who{min-width:0;flex:1}
+.elo{flex:none;color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
 .name{font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
 .dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--off)}
 .dot.d{background:var(--def)}
@@ -216,9 +217,9 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
       <p>Log in with Discord, then register your TagPro name and the position you play most.</p>
       <h2>Teams and ratings</h2>
       <ul>
-        <li>Teams are balanced by rating: two offense and two defense per side.</li>
-        <li>A win raises your rating and a loss lowers it. Beating a stronger team moves you further.</li>
-        <li>Your rating appears on the Top 100 once you’ve played 10 games this season.</li>
+        <li>Ratings work like FACEIT: everyone starts at 1000 Elo, and your Elo sets your skill level from 1 to 10 (level 10 is 2001+).</li>
+        <li>A win between evenly matched teams is worth about 25 Elo. Beating a stronger team earns more and losing to a weaker one costs more. Everyone on a team moves by the same amount.</li>
+        <li>Your first 10 games of a season are placements: they count for a bit more, and your Elo and level stay hidden until they’re done. After that you appear on the Top 100.</li>
       </ul>
       <h2>Map voting</h2>
       <p>Rate any map from −5 to 10 on the Maps page. Your vote counts until you change it, and the rotation updates as votes come in.</p>
@@ -263,7 +264,8 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 /* ---------- helpers ---------- */
 const $ = (s,el=document)=>el.querySelector(s);
 const h = (tag,attrs={},...kids)=>{const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs)){if(v==null||v===false)continue;if(k==="class")e.className=v;else if(k==="style")e.style.cssText=v;else if(k.startsWith("on"))e.addEventListener(k.slice(2),v);else e.setAttribute(k,v===true?"":v)}for(const c of kids.flat())if(c!=null)e.append(c instanceof Node?c:document.createTextNode(c));return e};
-const tier = r => r>=40?"#ff3344":r>=30?"#f5c400":r>=20?"#9b5cff":r>=15?"#ff8a1f":r>=10?"#3b8bff":"#22b8c8";
+// FACEIT level colours: 1 grey, 2–3 green, 4–7 yellow, 8–9 orange, 10 red
+const tier = lv => !lv?"#52525b":lv>=10?"#fe1f00":lv>=8?"#ff6309":lv>=4?"#ffc800":lv>=2?"#1ce400":"#dddddd";
 const minus = n => String(n).replace("-","−");
 async function api(path, opts={}){
   const r = await fetch(path,{credentials:"same-origin",headers:{"Content-Type":"application/json"},...opts});
@@ -271,7 +273,7 @@ async function api(path, opts={}){
   if(!r.ok){const det=d&&d.detail;throw new Error(typeof det==="string"?det:Array.isArray(det)?det.map(x=>x.msg).join("; "):`Request failed (${r.status}).`)}
   return d;
 }
-function badge(r,size){const b=h("div",{class:"badge",style:`--tier:${tier(r)}`},String(r));if(size){b.style.width=b.style.height=size+"px";b.style.fontSize=Math.round(size*.62)+"px"}return b}
+function badge(lv,size){const b=h("div",{class:"badge",style:`--tier:${tier(lv)}`,title:lv?`Level ${lv}`:"In placements"},lv?String(lv):"–");if(size){b.style.width=b.style.height=size+"px";b.style.fontSize=Math.round(size*.62)+"px"}return b}
 const tagEls = tags => (tags||[]).map(t=>h("span",{class:"tag"+(t==="OG"?" og":t.includes("★")?" champ":"")},t));
 const posLabel = p => p==="defense"?"Defense":"Offense";
 
@@ -333,9 +335,10 @@ function renderBoard(){
   for(let c=0;c<5;c++){
     const slice=BOARD.slice(c*20,c*20+20); if(!slice.length)break;
     const col=h("div",{class:"col"});
-    slice.forEach(p=>col.append(h("button",{class:"row","data-name":p.name.toLowerCase(),onclick:()=>openPlayer(p.name),"aria-label":`${p.name}, rank ${p.rank}, rating ${p.rating}`},
-      h("span",{class:"rank"},p.rank+"."), badge(p.rating),
-      h("span",{class:"who"}, h("span",{class:"name"},p.name,h("i",{class:"dot"+(p.position==="defense"?" d":""),title:posLabel(p.position)})), h("span",{class:"tags"},tagEls(p.tags)))
+    slice.forEach(p=>col.append(h("button",{class:"row","data-name":p.name.toLowerCase(),onclick:()=>openPlayer(p.name),"aria-label":`${p.name}, rank ${p.rank}, level ${p.level}, ${p.elo} Elo`},
+      h("span",{class:"rank"},p.rank+"."), badge(p.level),
+      h("span",{class:"who"}, h("span",{class:"name"},p.name,h("i",{class:"dot"+(p.position==="defense"?" d":""),title:posLabel(p.position)})), h("span",{class:"tags"},tagEls(p.tags))),
+      h("span",{class:"elo"},String(p.elo))
     )));
     board.append(col);
   }
@@ -344,12 +347,14 @@ async function openPlayer(name){
   const dlg=$("#player");
   try{
     const p=await api("/api/players/"+encodeURIComponent(name));
-    const best=[...p.ratings].sort((a,b)=>b.rating-a.rating)[0];
-    const b=$("#pd-badge"); b.textContent=best?best.rating:"–"; b.style.setProperty("--tier",tier(best?best.rating:0));
+    const r=p.rating, rec=`${r.wins}–${r.games-r.wins}`;
+    const b=$("#pd-badge"); b.textContent=r.level||"–"; b.style.setProperty("--tier",tier(r.level));
     $("#pd-name").textContent=p.name;
-    $("#pd-meta").textContent = p.ratings.length ? p.ratings.map(r=>`${posLabel(r.position)}: ${r.rating} (${r.wins}–${r.games-r.wins})`).join("  ") : "No games this season yet.";
+    $("#pd-meta").textContent = !r.games ? `${posLabel(p.position)} · No games this season yet.`
+      : r.level ? `${posLabel(p.position)} · Level ${r.level} · ${r.elo} Elo · ${rec}`
+      : `${posLabel(p.position)} · Placements: ${r.placements_left} left · ${rec}`;
     $("#pd-tags").replaceChildren(...tagEls(p.tags));
-    $("#pd-recent").replaceChildren(...p.recent.map(m=>h("li",{},h("span",{},`${m.won?"Won":"Lost"} on ${m.map||"unknown map"}`),h("span",{class:m.change>=0?"up":"down"},(m.change>=0?"+":"")+minus(m.change)))));
+    $("#pd-recent").replaceChildren(...p.recent.map(m=>h("li",{},h("span",{},`${m.won?"Won":"Lost"} on ${m.map||"unknown map"}`),m.change==null?h("span",{class:"sub"},"placement"):h("span",{class:m.change>=0?"up":"down"},(m.change>=0?"+":"")+minus(m.change)))));
     if(!dlg.open) dlg.showModal();
   }catch(err){ alert(err.message); }
 }
@@ -414,7 +419,7 @@ function renderMaps(){
 /* ---------- home glance ---------- */
 function renderGlance(){
   const gp=$("#g-players"); gp.replaceChildren();
-  BOARD.slice(0,5).forEach(p=>gp.append(h("li",{},badge(p.rating,32),h("span",{},p.name),h("span",{class:"sub"},"#"+p.rank))));
+  BOARD.slice(0,5).forEach(p=>gp.append(h("li",{},badge(p.level,32),h("span",{},p.name),h("span",{class:"sub"},"#"+p.rank))));
   if(!BOARD.length) gp.append(h("li",{class:"sub"},"Nobody ranked yet."));
   const gm=$("#g-maps"); gm.replaceChildren();
   [...MAPS].sort((a,b)=>b.chance-a.chance).slice(0,5).forEach(m=>gm.append(h("li",{},h("span",{},m.name),h("span",{class:"sub"},m.chance.toFixed(1)+"%"))));
@@ -439,7 +444,7 @@ $("#report-form").addEventListener("submit",async e=>{
   });
   try{
     const res=await api("/api/matches",{method:"POST",body:JSON.stringify({map_id:$("#r-map").value?+$("#r-map").value:null,winner:$("#r-winner").value,players})});
-    out.replaceChildren(h("p",{},`Match ${res.id} saved.`),h("ul",{},...res.changes.map(c=>{const d=c.after-c.before;return h("li",{},`${c.name}: ${c.before} → ${c.after} `,h("span",{class:d>=0?"up":"down"},`(${d>=0?"+":""}${minus(d)})`))})));
+    out.replaceChildren(h("p",{},`Match ${res.id} saved.`),h("ul",{},...res.changes.map(c=>{const d=c.change;return h("li",{},`${c.name}: ${c.before} → ${c.after} Elo `,h("span",{class:d>=0?"up":"down"},`(${d>=0?"+":""}${minus(d)})`))})));
     e.target.reset(); setupReport();
     BOARD=await api("/api/leaderboard"); renderBoard(); renderGlance();
   }catch(err){ out.replaceChildren(h("p",{class:"err"},err.message)); }
