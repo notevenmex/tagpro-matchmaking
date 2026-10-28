@@ -301,6 +301,11 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   .dock,.toast,dialog.pop[open],.chip,.live-dot{animation:none}
   .pill,.pick,.vmap,.accepts i,.timer i,.ring .prog{transition:none}
 }
+.dispute{border-top:1px solid var(--line);padding:10px 0;font-size:14px}
+.dispute:first-child{border-top:0}
+.dispute .sub{color:var(--muted)}
+.dispute form{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.dispute input{width:56px}
 </style>
 </head>
 <body>
@@ -371,6 +376,10 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   </section>
 
   <section class="view" id="v-report" hidden>
+    <div class="report" id="disputes" style="margin-bottom:18px">
+      <h2>Disputed scores</h2>
+      <div id="d-list" aria-live="polite"></div>
+    </div>
     <form class="report" id="report-form">
       <h2>Report a match</h2>
       <div class="meta-row">
@@ -806,6 +815,29 @@ function viewMatch(L){
   ];
 }
 
+/* ---------- disputed scores (admins) ---------- */
+async function renderDisputes(){
+  const box=$("#d-list");
+  let list; try{ list=await api("/api/disputes"); }catch(err){ box.replaceChildren(h("p",{class:"err"},err.message)); return; }
+  if(!list.length){ box.replaceChildren(h("p",{class:"sub"},"No disputes. Every match with two reports has matching scores.")); return; }
+  box.replaceChildren(...list.map(d=>{
+    const team=t=>d.teams[t].map(p=>p.is_captain?p.name+" (C)":p.name).join(", ");
+    const rep=t=>{const r=d.reports[t];return r?`${r.by||"Captain"} says Red ${r.red_score}–${r.blue_score} Blue`:"no report"};
+    const red=h("input",{type:"number",min:0,max:99,required:true,"aria-label":"Red caps"});
+    const blue=h("input",{type:"number",min:0,max:99,required:true,"aria-label":"Blue caps"});
+    const msg=h("span",{});
+    return h("div",{class:"dispute"},
+      h("div",{},h("strong",{},`Match ${d.id}`),h("span",{class:"sub"},` · ${d.map||"no map"} · ${d.server||""}`)),
+      h("div",{class:"sub"},"Red: "+team("red")),h("div",{class:"sub"},"Blue: "+team("blue")),
+      h("div",{},"Red captain: "+rep("red")),h("div",{},"Blue captain: "+rep("blue")),
+      h("form",{onsubmit:async e=>{e.preventDefault(); msg.replaceChildren("Saving…");
+        try{ await api(`/api/lobbies/${d.id}/resolve`,{method:"POST",body:JSON.stringify({red_score:+red.value,blue_score:+blue.value})});
+             renderDisputes(); BOARD=await api("/api/leaderboard"); renderBoard(); renderGlance(); }
+        catch(err){ msg.replaceChildren(h("span",{class:"err"},err.message)); }}},
+        "Final score: Red",red,"–",blue,"Blue",h("button",{class:"btn"},"Set score"),msg));
+  }));
+}
+
 /* ---------- routing ---------- */
 const VIEWS=["home","top100","maps","rules","report"]; let current="home";
 function go(v,push=true){
@@ -814,7 +846,7 @@ function go(v,push=true){
   VIEWS.forEach(x=>{$("#v-"+x).hidden=x!==v});
   document.querySelectorAll("nav a").forEach(a=>{ if(a.dataset.go===v)a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
   document.title="Ranked PUGs – "+({home:"Home",top100:"Leaderboard",maps:"Maps",rules:"Rules",report:"Report a match"})[v];
-  if(v==="report") setupReport();
+  if(v==="report"){ setupReport(); renderDisputes(); }
   if(push && location.hash!=="#"+v) history.replaceState(null,"","#"+v);
 }
 document.addEventListener("click",e=>{const t=e.target.closest("[data-go]");if(t){e.preventDefault();go(t.dataset.go)}});

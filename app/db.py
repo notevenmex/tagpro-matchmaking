@@ -80,7 +80,9 @@ class Match(Base):
     season_id: Mapped[int] = mapped_column(ForeignKey("seasons.id"))
     map_id: Mapped[int | None] = mapped_column(ForeignKey("maps.id"), nullable=True)
     winner: Mapped[str] = mapped_column(String(4))  # red | blue
-    reported_by: Mapped[str] = mapped_column(String(32))  # Discord id of the admin who entered it
+    red_score: Mapped[int | None] = mapped_column(Integer, nullable=True)   # caps; empty for old admin entries
+    blue_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reported_by: Mapped[str] = mapped_column(String(32))  # admin's Discord id, or "captains" when both reports matched
     played_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -114,8 +116,10 @@ class QueueBan(Base):
 class Lobby(Base):
     """One popped queue, from ready check through draft, map veto and server vote to the game itself.
 
-    status: ready_check -> drafting -> map_veto -> server_vote -> awaiting_group -> in_progress,
-    or cancelled at any point. Captain "red" picks first; "blue" bans first.
+    status: ready_check -> drafting -> map_veto -> server_vote -> awaiting_group -> in_progress
+    -> finished (both captains' scores matched, or an admin settled a dispute), with a detour
+    through disputed when the two reports don't match. Cancelled is possible at any point
+    before finished. Captain "red" picks first; "blue" bans first.
     """
     __tablename__ = "lobbies"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -144,6 +148,20 @@ class LobbyPlayer(Base):
     is_captain: Mapped[bool] = mapped_column(Boolean, default=False)
     pick_no: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1-6 draft order
     server_vote: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class ScoreReport(Base):
+    """One captain's report of the final score. Each team's captain has at most one, which they can
+    change until the match is finished."""
+    __tablename__ = "score_reports"
+    __table_args__ = (UniqueConstraint("lobby_id", "team"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lobby_id: Mapped[int] = mapped_column(ForeignKey("lobbies.id"))
+    team: Mapped[str] = mapped_column(String(4))  # the reporting captain's team
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
+    red_score: Mapped[int] = mapped_column(Integer)
+    blue_score: Mapped[int] = mapped_column(Integer)
+    reported_at: Mapped[float] = mapped_column(Float)
 
 
 def get_db():

@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, play
+from . import auth, play, reporting
 from .db import Base, Map, MapVote, Match, MatchPlayer, Player, Rating, Season, engine, get_db
 from .rating import LEVELS, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, rating_out, record_match
 
@@ -24,6 +24,7 @@ app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax"
                    https_only=os.getenv("HTTPS_ONLY", "0") == "1", max_age=60 * 60 * 24 * 30)
 app.include_router(auth.router)
 app.include_router(play.router)
+app.include_router(reporting.router)
 Base.metadata.create_all(engine)
 
 Position = Literal["offense", "defense"]
