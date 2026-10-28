@@ -383,7 +383,7 @@ def play_state(request: Request, db: Session = Depends(get_db)):
     queue = db.execute(select(QueueEntry, Player.tagpro_name).join(Player, QueueEntry.player_id == Player.id)
                        .order_by(QueueEntry.joined_at)).all()
     lobby = _my_lobby(db, me) if me else None
-    live = db.scalars(select(Lobby).where(Lobby.status.in_(PRE_GAME + ("in_progress", "disputed")))
+    live = db.scalars(select(Lobby).where(Lobby.status.in_(LIVE_SHOWN))
                       .order_by(Lobby.id.desc()).limit(10)).all()
     mine = next((e for e, _ in queue if me and e.player_id == me.id), None)
     from .reporting import queue_block
@@ -393,7 +393,25 @@ def play_state(request: Request, db: Session = Depends(get_db)):
             **(restrictions.ban_info(db, me.id) if me else {"banned_until": None, "ban_kind": None, "ban_reason": None}),
             "queue_block": queue_block(db, me.id) if me else None,  # captains waiting on a verified score
             "lobby": lobby_view(db, lobby, me) if lobby else None,
-            "live": [{"id": x.id, "status": x.status} for x in live]}
+            "live": [live_out(db, x) for x in live]}
+
+
+# Matches on the home page's "Ongoing matches" list: from the draft until the score is in.
+LIVE_SHOWN = ("drafting", "map_veto", "server_vote", "awaiting_group", "in_progress", "disputed")
+
+
+def live_out(db: Session, lobby: Lobby) -> dict:
+    """A public summary of one ongoing match: map (once the veto is done), Elo averages and teams."""
+    lps = _lobby_players(db, lobby)
+    avg = lambda xs: round(sum(xs) / len(xs)) if xs else None  # noqa: E731
+    team = lambda t: [(lp, p) for lp, p in lps if lp.team == t]  # noqa: E731
+    return {"id": lobby.id, "status": lobby.status,
+            "map": db.get(Map, lobby.map_id).name if lobby.map_id else None, "server": lobby.server,
+            "avg_elo": avg([lp.elo for lp, _ in lps]),
+            "teams": {t: {"avg_elo": avg([lp.elo for lp, _ in team(t)]),
+                          "players": [p.tagpro_name for lp, p in sorted(team(t), key=lambda x: (not x[0].is_captain,
+                                                                                               x[0].pick_no or 0))]}
+                      for t in ("red", "blue")}}
 
 
 @router.get("/api/lobbies/{lobby_id}")
