@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, maps_admin, pages, play, private_queues, reporting, titles
+from . import auth, chat, maps_admin, pages, play, postmatch, private_queues, reporting, runback, titles
 from .db import (Base, Map, MapVote, Match, MatchPlayer, Player, PrivateQueue, QueueRating, Rating, Season,
                  add_missing_columns, engine, get_db)
 from .rating import (PLACEMENT_MULTIPLIER, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, find_rating, rating_out,
@@ -28,9 +28,12 @@ app.include_router(auth.router)
 app.include_router(play.router)
 app.include_router(private_queues.router)
 app.include_router(reporting.router)
+app.include_router(runback.router)
+app.include_router(postmatch.router)
 app.include_router(pages.router)
 app.include_router(maps_admin.router)
 app.include_router(titles.router)
+app.include_router(chat.router)
 Base.metadata.create_all(engine)
 add_missing_columns()
 
@@ -190,7 +193,7 @@ def players(q: str = "", db: Session = Depends(get_db)):
 
 
 @app.get("/api/players/{name}")
-def player_detail(name: str, db: Session = Depends(get_db)):
+def player_detail(name: str, request: Request, db: Session = Depends(get_db)):
     p = find_player(db, name)
     if not p:
         raise HTTPException(404, f"No player named “{name}”.")
@@ -213,23 +216,12 @@ def player_detail(name: str, db: Session = Depends(get_db)):
     private = [{"id": q.id, "name": q.name, **track(q.id)} for q in db.scalars(
         select(PrivateQueue).join(QueueRating, QueueRating.queue_id == PrivateQueue.id)
         .where(QueueRating.player_id == p.id, QueueRating.season_id == s.id).order_by(PrivateQueue.name))]
-    placed = {None: general["placed"], **{q["id"]: q["placed"] for q in private}}
-    qnames = {q["id"]: q["name"] for q in private}
-    recent = db.execute(
-        select(MatchPlayer, Match, Map.name).join(Match, MatchPlayer.match_id == Match.id)
-        .outerjoin(Map, Match.map_id == Map.id).where(MatchPlayer.player_id == p.id)
-        .order_by(Match.played_at.desc()).limit(10)
-    ).all()
     return {**player_out(p, titles.titles_by_player(db, [p.id])[p.id]),
             "rating": general["rating"], "history": general["history"],
             # the player's Elo in each private queue they've played this season
             "queues": [{k: q[k] for k in ("id", "name", "rating", "history")} for q in private],
-            # Elo changes stay hidden until placements are done (in that match's queue), like the Elo itself
-            "recent": [{"map": mname, "team": mp.team, "position": mp.position, "won": mp.team == m.winner,
-                        "queue": qnames.get(m.queue_id) if m.queue_id else None,
-                        "change": mp.elo_after - mp.elo_before if placed.get(m.queue_id) else None,
-                        "played_at": m.played_at.isoformat()}
-                       for mp, m, mname in recent]}
+            # recent matches, each linking to its Post Match page; the player can hide them (postmatch.py)
+            **postmatch.recent_matches(db, p, request.session.get("discord_id"))}
 
 
 # ---------- maps ----------

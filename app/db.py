@@ -87,6 +87,14 @@ class Player(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class PlayerPrefs(Base):
+    """A player's own display settings: whether their profile lists their recent matches, and how many."""
+    __tablename__ = "player_prefs"
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), primary_key=True)
+    show_recent: Mapped[bool] = mapped_column(Boolean, default=True)
+    recent_count: Mapped[int] = mapped_column(Integer, default=10)
+
+
 class Rating(Base):
     """One FACEIT-style Elo per player, per season (see rating.py)."""
     __tablename__ = "ratings"
@@ -338,6 +346,22 @@ class MatchNotice(Base):
     sent_at: Mapped[float] = mapped_column(Float, default=0)
 
 
+class RunbackVote(Base):
+    """The post-match "Salty Runback?" vote for a finished lobby (see runback.py).
+
+    status: open -> passed (all players said yes; new_lobby_id is the rematch) or failed (someone said
+    no, time ran out, or a player couldn't play it). votes maps player id (as a string) to True/False.
+    """
+    __tablename__ = "runback_votes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lobby_id: Mapped[int] = mapped_column(ForeignKey("lobbies.id"), unique=True)
+    status: Mapped[str] = mapped_column(String(8), default="open")
+    deadline: Mapped[float] = mapped_column(Float)
+    votes: Mapped[dict] = mapped_column(JSON, default=dict)
+    new_lobby_id: Mapped[int | None] = mapped_column(ForeignKey("lobbies.id"), nullable=True)
+    note: Mapped[str] = mapped_column(String(200), default="")  # why it failed
+
+
 class VoiceRoom(Base):
     """A temporary Discord voice channel for one team of a lobby (see voice.py).
 
@@ -353,6 +377,32 @@ class VoiceRoom(Base):
     created_at: Mapped[float] = mapped_column(Float)
     ended_at: Mapped[float | None] = mapped_column(Float, nullable=True)
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class ChatMessage(Base):
+    """One line of a match's lobby chat (see chat.py). channel "all" is for all 8 players; "red" or
+    "blue" is team chat. Kept after the match so the Post Match page and admins can read it back.
+    hidden is set by an admin: hidden lines only show up for admins."""
+    __tablename__ = "chat_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lobby_id: Mapped[int] = mapped_column(ForeignKey("lobbies.id"), index=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
+    channel: Mapped[str] = mapped_column(String(4))  # all | red | blue
+    body: Mapped[str] = mapped_column(String(300))
+    sent_at: Mapped[float] = mapped_column(Float)
+    as_admin: Mapped[bool] = mapped_column(Boolean, default=False)  # an admin who isn't in the match
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False)
+    hidden_by: Mapped[str | None] = mapped_column(String(32), nullable=True)  # admin's Discord id
+
+
+class ChatMute(Base):
+    """An admin's mute on a Discord login: none of its accounts can send lobby chat until then."""
+    __tablename__ = "chat_mutes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    discord_id: Mapped[str] = mapped_column(String(32), unique=True)
+    until: Mapped[float] = mapped_column(Float)
+    reason: Mapped[str] = mapped_column(String(200), default="")
+    muted_by: Mapped[str] = mapped_column(String(32))
 
 
 def add_missing_columns():

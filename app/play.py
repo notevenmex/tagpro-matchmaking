@@ -105,14 +105,16 @@ def clear_queues(db: Session, player_ids: list[int]):
     db.flush()
 
 
-def _full_queue(db: Session) -> tuple[int | None, list] | None:
+def _full_queue(db: Session, held: set[int]) -> tuple[int | None, list] | None:
     """The first queue with QUEUE_SIZE players waiting (general first, then private queues), and
-    its oldest QUEUE_SIZE entries."""
-    entries = db.scalars(select(QueueEntry).order_by(QueueEntry.joined_at, QueueEntry.id).limit(QUEUE_SIZE)).all()
+    its oldest QUEUE_SIZE entries. Players in held are skipped."""
+    entries = db.scalars(select(QueueEntry).where(QueueEntry.player_id.not_in(held))
+                         .order_by(QueueEntry.joined_at, QueueEntry.id).limit(QUEUE_SIZE)).all()
     if len(entries) == QUEUE_SIZE:
         return None, entries
     for qid in db.scalars(select(PrivateQueue.id).where(PrivateQueue.archived.is_(False)).order_by(PrivateQueue.id)):
-        entries = db.scalars(select(PrivateQueueEntry).where(PrivateQueueEntry.queue_id == qid)
+        entries = db.scalars(select(PrivateQueueEntry).where(PrivateQueueEntry.queue_id == qid,
+                                                             PrivateQueueEntry.player_id.not_in(held))
                              .order_by(PrivateQueueEntry.joined_at, PrivateQueueEntry.id).limit(QUEUE_SIZE)).all()
         if len(entries) == QUEUE_SIZE:
             return qid, entries
@@ -121,9 +123,12 @@ def _full_queue(db: Session) -> tuple[int | None, list] | None:
 
 def try_pop(db: Session):
     """Start a lobby for every full group of QUEUE_SIZE players in any queue, oldest first.
-    Everyone in it leaves all their other queues."""
+    Everyone in it leaves all their other queues. Players waiting on a Salty Runback vote keep
+    their place but are skipped (runback.py)."""
+    from . import runback  # imports this module
+    held = runback.held_ids(db)
     while True:
-        full = _full_queue(db)
+        full = _full_queue(db, held)
         if not full:
             return
         queue_id, entries = full
@@ -263,6 +268,8 @@ def tick(db: Session) -> bool:
         changed = True
     if auth.DEV_LOGIN:
         changed = _bot_moves(db, t) or changed
+    from . import runback  # imports this module
+    changed = runback.tick(db, t) or changed
     if db.execute(delete(QueueBan).where(QueueBan.until <= t)).rowcount:
         changed = True
     if restrictions.expire_queue(db):
@@ -311,11 +318,17 @@ def _bot_moves(db: Session, t: float) -> bool:
 # ---------- live updates ----------
 _version = 0
 _sockets: set[WebSocket] = set()
+_chat_pings: set[int] = set()  # lobbies with new chat since the last loop (chat.py)
 
 
 def bump():
     global _version
     _version += 1
+
+
+def chat_ping(lobby_id: int):
+    """Tell every open page that a lobby's chat changed; pages showing it then re-fetch the chat."""
+    _chat_pings.add(lobby_id)
 
 
 def _tick_once() -> bool:
@@ -334,11 +347,16 @@ async def _loop():
                 bump()
         except Exception:
             log.exception("matchmaking tick failed")
+        msgs = []
         if _version != sent:
             sent = _version
+            msgs.append({"type": "update", "v": sent})
+        while _chat_pings:
+            msgs.append({"type": "chat", "lobby": _chat_pings.pop()})
+        for msg in msgs:
             for ws in list(_sockets):
                 try:
-                    await ws.send_json({"type": "update", "v": sent})
+                    await ws.send_json(msg)
                 except Exception:
                     _sockets.discard(ws)
         await asyncio.sleep(0.5)
@@ -357,7 +375,8 @@ async def lifespan(app: FastAPI):
 
 @router.websocket("/ws")
 async def ws(websocket: WebSocket):
-    """Pushes {"type": "update"} whenever matchmaking state changes; clients then re-fetch /api/play."""
+    """Pushes {"type": "update"} whenever matchmaking state changes (clients then re-fetch /api/play), and
+    {"type": "chat", "lobby": id} when a lobby's chat changes (clients showing it re-fetch its chat)."""
     await websocket.accept()
     _sockets.add(websocket)
     try:
@@ -378,7 +397,7 @@ def queue_name(db: Session, lobby: Lobby) -> str | None:
 
 def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
     from .reporting import score_view
-    from . import tagpro_eu, voice  # they import this module
+    from . import runback, tagpro_eu, voice  # they import this module
     lps = _lobby_players(db, lobby)
     stats = tagpro_eu.season_stats(db, lobby.season_id, [p.id for _, p in lps])
     mine = next((lp for lp, p in lps if me and p.id == me.id), None)
@@ -399,6 +418,9 @@ def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
         "group_bot": db.scalar(select(GroupJob.status).where(GroupJob.lobby_id == lobby.id)),  # see autogroup.py
         "team_name": tagpro_eu.team_name(lobby.id),  # what to call both teams so tagpro.eu can find the game
         "score": score_view(db, lobby, me),
+        "match_id": lobby.match_id,  # its Post Match page once the score is in (postmatch.py)
+        "runback": runback.view(db, lobby, me),  # the post-match "Salty Runback?" vote
+        "runback_of": runback.runback_of(db, lobby.id),
         "voice_link": voice.voice_links(db, lobby.id).get(mine.team) if mine and mine.team else None,  # voice.py
         "me": None if not mine else {
             "team": mine.team, "is_captain": mine.is_captain, "accepted": mine.accepted,
@@ -407,11 +429,14 @@ def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
 
 
 def _my_lobby(db: Session, p: Player) -> Lobby | None:
-    """The lobby to show this player: a live one, or one that just ended in the last minute."""
+    """The lobby to show this player: a live one, or one that just ended in the last minute (or is
+    holding its Salty Runback vote)."""
+    from . import runback  # imports this module
     t = clock()
     lobby = db.scalar(select(Lobby).join(LobbyPlayer, LobbyPlayer.lobby_id == Lobby.id)
                       .where(LobbyPlayer.player_id == p.id).order_by(Lobby.id.desc()).limit(1))
-    if not lobby or (lobby.status in ("cancelled", "finished") and (lobby.deadline or 0) < t - 60):
+    if not lobby or (lobby.status in ("cancelled", "finished") and (lobby.deadline or 0) < t - 60
+                     and not runback.recently_over(db, lobby, t - 60)):
         return None
     return lobby
 

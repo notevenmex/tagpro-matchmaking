@@ -9,13 +9,15 @@ minutes captains can't report; if it finds nothing, they report as below.
   the match finishes on its own.
 - Both captains are kept out of the queue until their match is finished. The other six players
   can queue again as soon as the game starts.
+- A verified score opens the Salty Runback vote (runback.py), which holds all eight players out of
+  the queue until it's decided.
 """
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import auth, play, tagpro_eu
+from . import auth, play, runback, tagpro_eu
 from .db import Lobby, LobbyPlayer, Map, Match, Player, ScoreReport, Season, get_db
 from .rating import record_match
 
@@ -46,7 +48,11 @@ def _same(a: ScoreReport, b: ScoreReport) -> bool:
 
 
 def queue_block(db: Session, player_id: int) -> str | None:
-    """Why this player can't queue yet, if they captained a match that has no verified score."""
+    """Why this player can't queue yet, if they captained a match that has no verified score (or are
+    waiting on a Salty Runback vote)."""
+    held = runback.hold_reason(db, player_id)
+    if held:
+        return held
     row = db.execute(select(Lobby, LobbyPlayer.team).join(LobbyPlayer, LobbyPlayer.lobby_id == Lobby.id)
                      .where(LobbyPlayer.player_id == player_id, LobbyPlayer.is_captain.is_(True),
                             Lobby.status.in_(UNREPORTED))).first()
@@ -70,6 +76,7 @@ def finish(db: Session, lobby: Lobby, red_score: int, blue_score: int, reported_
                         queue_id=lobby.queue_id)
     m.red_score, m.blue_score = red_score, blue_score
     lobby.match_id, lobby.status, lobby.deadline = m.id, "finished", play.clock()
+    runback.open_vote(db, lobby, reported_by)
     return m
 
 
