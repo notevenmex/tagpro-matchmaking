@@ -59,6 +59,15 @@ nav a{font-family:var(--display);font-weight:500;font-size:25px;color:var(--mute
 nav a[aria-current="page"]{color:var(--red)}
 nav a:hover{color:var(--text)}
 .search{font-family:var(--display);font-size:24px;background:var(--panel-2);border:0;color:var(--text);padding:6px 12px;width:240px;max-width:100%}
+.searchbox{position:relative;max-width:100%}
+.results{position:absolute;top:calc(100% + 4px);right:0;z-index:30;width:min(340px,calc(100vw - 32px));max-height:min(420px,70vh);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.45);padding:4px 0}
+.results .grp{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 12px 2px}
+.results .opt{display:flex;align-items:center;gap:10px;padding:6px 12px;cursor:pointer;font-size:14px}
+.results .opt .sub{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+.results .opt[aria-selected="true"],.results .opt:hover{background:var(--panel-2)}
+.results .none{padding:10px 12px;color:var(--muted);font-size:14px}
+.map.flash{box-shadow:0 0 0 2px var(--red)}
+@media (max-width:560px){nav{position:relative}.searchbox{position:static}.results{left:8px;right:8px;width:auto}}
 .search::placeholder{color:var(--muted)}
 
 /* banner */
@@ -404,7 +413,10 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   <a href="#ratings" data-go="ratings">Ratings</a>
   <a href="#rules" data-go="rules">Rules</a>
   <a href="#report" data-go="report" id="nav-report" hidden>Report</a>
-  <input class="search" id="search" type="search" placeholder="Search…" aria-label="Search players">
+  <div class="searchbox">
+    <input class="search" id="search" type="search" placeholder="Search…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list" aria-label="Search players, maps, titles and pages">
+    <div class="results" id="search-results" role="listbox" aria-label="Search results" hidden></div>
+  </div>
 </nav>
 
 <div class="banner" id="banner" role="note" hidden></div>
@@ -696,16 +708,60 @@ function renderTitleAdmin(){
 }
 
 /* ---------- search ---------- */
-$("#search").addEventListener("input",e=>{
-  const q=e.target.value.trim().toLowerCase();
-  if(q && current!=="top100") go("top100");
-  let first=null;
-  document.querySelectorAll("#board .row").forEach(r=>{
-    const hit=q && r.dataset.name.includes(q);
-    r.classList.toggle("dim",!!q && !hit); r.classList.toggle("hit",!!hit);
-    if(hit && !first) first=r;
-  });
-  if(first) first.scrollIntoView({block:"nearest"});
+// Sitewide: players (everyone registered, not just the Top 100), maps, season titles and pages.
+// Arrow keys move through the results, Enter opens one, Escape closes the list.
+const SEARCH={opts:[],sel:-1,seq:0,timer:null};
+function searchPages(){
+  return [["home","Home"],["top100","Top 100","Leaderboard"],["maps","Maps"],["rules","Rules"],
+    ...(ME.is_admin?[["report","Report","Report a match, titles"]]:[])].map(([v,label,alias])=>({v,label,alias}));
+}
+function highlightBoard(q){ // on the Top 100, matching names stay lit as before
+  document.querySelectorAll("#board .row").forEach(r=>{ const hit=q&&r.dataset.name.includes(q); r.classList.toggle("dim",!!q&&!hit); r.classList.toggle("hit",!!hit); });
+}
+function flashMap(name){
+  go("maps"); const card=[...document.querySelectorAll("#maps .map")].find(c=>c.dataset.name===name.toLowerCase());
+  if(card){ card.scrollIntoView({block:"center",behavior:"smooth"}); card.classList.add("flash"); setTimeout(()=>card.classList.remove("flash"),1800); }
+}
+function closeSearch(){ const box=$("#search-results"); box.hidden=true; $("#search").setAttribute("aria-expanded","false"); $("#search").removeAttribute("aria-activedescendant"); SEARCH.sel=-1; }
+function pickResult(i){ const o=SEARCH.opts[i]; if(!o) return; closeSearch(); highlightBoard(""); $("#search").value=""; $("#search").blur(); o.run(); }
+async function runSearch(){
+  const input=$("#search"), raw=input.value.trim(), q=raw.toLowerCase(), seq=++SEARCH.seq;
+  if(current==="top100") highlightBoard(q);
+  if(!q){ closeSearch(); return; }
+  let names=[]; try{ names=await api("/api/players?q="+encodeURIComponent(raw)); }catch{}
+  if(seq!==SEARCH.seq) return; // a newer keystroke already searched
+  const elo=Object.fromEntries(BOARD.map(p=>[p.name,p]));
+  const starts=a=>a.toLowerCase().startsWith(q)?0:1, byFit=(a,b)=>starts(a)-starts(b)||a.localeCompare(b);
+  const groups=[
+    ["Players", names.sort(byFit).slice(0,8).map(n=>({label:n,sub:elo[n]?`#${elo[n].rank} · ${elo[n].elo} Elo`:"",run:()=>openPlayer(n)}))],
+    ["Maps", MAPS.map(m=>m.name).filter(n=>n.toLowerCase().includes(q)).sort(byFit).slice(0,6).map(n=>({label:n,sub:"Map",run:()=>flashMap(n)}))],
+    ["Titles", (typeof TITLES!=="undefined"?TITLES:[]).filter(t=>t.player&&(`s${t.season} ${t.title}`.toLowerCase().includes(q)||t.title.toLowerCase().includes(q))).slice(0,5)
+      .map(t=>({label:`S${t.season} ${t.title}`,sub:t.player,run:()=>openPlayer(t.player)}))],
+    ["Pages", searchPages().filter(p=>(p.label+" "+(p.alias||"")).toLowerCase().includes(q)).map(p=>({label:p.label,sub:"Page",run:()=>go(p.v)}))],
+  ].filter(([,o])=>o.length);
+  SEARCH.opts=groups.flatMap(([,o])=>o); SEARCH.sel=SEARCH.opts.length?0:-1;
+  let i=0; const box=$("#search-results");
+  box.replaceChildren(...(groups.length?groups.flatMap(([g,opts])=>[h("div",{class:"grp","aria-hidden":"true"},g),
+    ...opts.map(o=>{ const n=i++; return h("div",{class:"opt",role:"option",id:"sr-"+n,"aria-selected":String(n===SEARCH.sel),
+      onmousedown:e=>{ e.preventDefault(); pickResult(n); }},h("span",{},o.label),o.sub?h("span",{class:"sub"},o.sub):null); })])
+    :[h("div",{class:"none"},`Nothing matches “${raw}”.`)]));
+  box.hidden=false; input.setAttribute("aria-expanded","true");
+  if(SEARCH.sel>=0) input.setAttribute("aria-activedescendant","sr-0");
+}
+function moveSel(d){
+  if(!SEARCH.opts.length) return;
+  SEARCH.sel=(SEARCH.sel+d+SEARCH.opts.length)%SEARCH.opts.length;
+  document.querySelectorAll("#search-results .opt").forEach((el,n)=>el.setAttribute("aria-selected",String(n===SEARCH.sel)));
+  const el=$("#sr-"+SEARCH.sel); el.scrollIntoView({block:"nearest"}); $("#search").setAttribute("aria-activedescendant",el.id);
+}
+$("#search").addEventListener("input",()=>{ clearTimeout(SEARCH.timer); SEARCH.timer=setTimeout(runSearch,120); });
+$("#search").addEventListener("focus",()=>{ if($("#search").value.trim()) runSearch(); });
+$("#search").addEventListener("blur",()=>setTimeout(closeSearch,100));
+$("#search").addEventListener("keydown",e=>{
+  if(e.key==="ArrowDown"){ e.preventDefault(); moveSel(1); }
+  else if(e.key==="ArrowUp"){ e.preventDefault(); moveSel(-1); }
+  else if(e.key==="Enter"){ e.preventDefault(); clearTimeout(SEARCH.timer); if(!$("#search-results").hidden&&SEARCH.sel>=0) pickResult(SEARCH.sel); else runSearch(); }
+  else if(e.key==="Escape"){ closeSearch(); }
 });
 
 /* ---------- maps ---------- */
@@ -739,7 +795,7 @@ function renderMaps(){
   if(!MAPS.length){ wrap.append(h("p",{class:"empty",style:"grid-column:1/-1"},"No maps are in the rotation yet.")); return; }
   const canVote = ME.logged_in && ME.player;
   for(const m of MAPS){
-    const card=h("article",{class:"map"});
+    const card=h("article",{class:"map","data-name":m.name.toLowerCase()});
     card.append(mapImg(m.name));
     const list=h("div",{class:"votes",tabindex:"0","aria-label":`Votes for ${m.name}`});
     if(!m.votes.length) list.append(h("div",{class:"hint"},"No votes yet."));
