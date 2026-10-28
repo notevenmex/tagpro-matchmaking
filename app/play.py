@@ -45,6 +45,8 @@ SERVERS = [s.strip() for s in os.getenv("SERVERS", "US East,US Central,US West,E
 PICK_ORDER = [("red", "blue", "blue", "red")[i % 4] for i in range(QUEUE_SIZE - 2)]
 PRE_GAME = ("ready_check", "drafting", "map_veto", "server_vote", "awaiting_group")
 TIMED = {"ready_check", "drafting", "map_veto", "server_vote"}
+STEP_SECONDS = {"ready_check": READY_SECONDS, "drafting": PICK_SECONDS, "map_veto": BAN_SECONDS,
+                "server_vote": VOTE_SECONDS}
 
 LOCK = threading.Lock()
 clock = time.time  # tests replace this to move time forward
@@ -168,6 +170,8 @@ def _weighted_pool(db: Session) -> list[Map]:
     maps = db.scalars(select(Map).where(Map.active.is_(True)).order_by(Map.id)).all()
     totals = dict(db.execute(select(MapVote.map_id, func.sum(MapVote.score)).group_by(MapVote.map_id)).all())
     weights = {m.id: max(0, totals.get(m.id) or 0) for m in maps}
+    if any(weights.values()):  # maps voted down to zero or below drop out of the rotation
+        maps = [m for m in maps if weights[m.id] > 0]
     pool = []
     while maps and len(pool) < MAP_POOL_SIZE:
         w = [weights[m.id] for m in maps]
@@ -234,8 +238,48 @@ def tick(db: Session) -> bool:
         elif lobby.status == "server_vote":
             resolve_server(db, lobby)
         changed = True
+    if auth.DEV_LOGIN:
+        changed = _bot_moves(db, t) or changed
     if db.execute(delete(QueueBan).where(QueueBan.until <= t)).rowcount:
         changed = True
+    return changed
+
+
+# ---------- test bots (DEV_LOGIN only) ----------
+BOT_DELAY = 1.5  # seconds a bot "thinks" before acting
+
+
+def _bot_moves(db: Session, t: float) -> bool:
+    """Archived players with no Discord account act as bots so one person can test a full match."""
+    changed = False
+    for lobby in db.scalars(select(Lobby).where(Lobby.status.in_(TIMED))).all():
+        lps = _lobby_players(db, lobby)
+        bots = [lp for lp, p in lps if p.discord_id is None]
+        if lobby.status == "ready_check":
+            for lp in bots:
+                if not lp.accepted and t >= lobby.created_at + BOT_DELAY:
+                    lp.accepted = changed = True
+            if all(lp.accepted for lp, _ in lps):
+                start_draft(db, lobby)
+            continue
+        step = STEP_SECONDS[lobby.status]
+        if t < lobby.deadline - step + BOT_DELAY:
+            continue
+        team = turn(db, lobby)
+        bot_captain = any(lp.is_captain and lp.team == team for lp in bots)
+        if lobby.status == "drafting" and bot_captain:
+            do_pick(db, lobby, max((lp for lp, _ in lps if lp.team is None), key=lambda lp: lp.elo))
+            changed = True
+        elif lobby.status == "map_veto" and bot_captain:
+            do_ban(db, lobby, rng.choice([m["id"] for m in lobby.map_pool if not m["banned_by"]]), team)
+            changed = True
+        elif lobby.status == "server_vote":
+            for lp in bots:
+                if not lp.server_vote:
+                    lp.server_vote, changed = rng.choice(SERVERS), True
+            db.flush()
+            if all(lp.server_vote for lp, _ in lps):
+                resolve_server(db, lobby)
     return changed
 
 
@@ -306,7 +350,7 @@ def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
     map_name = db.get(Map, lobby.map_id).name if lobby.map_id else None
     return {
         "id": lobby.id, "status": lobby.status, "deadline": lobby.deadline, "note": lobby.note,
-        "turn": t, "pick_order": PICK_ORDER,
+        "turn": t, "pick_order": PICK_ORDER, "step_seconds": STEP_SECONDS.get(lobby.status),
         "players": [{"name": p.tagpro_name, "position": p.position, "rating": points(lp.elo), "tags": p.tags or [],
                      "accepted": lp.accepted, "team": lp.team, "is_captain": lp.is_captain, "pick_no": lp.pick_no}
                     for lp, p in lps],
@@ -339,9 +383,10 @@ def play_state(request: Request, db: Session = Depends(get_db)):
     lobby = _my_lobby(db, me) if me else None
     live = db.scalars(select(Lobby).where(Lobby.status.in_(PRE_GAME + ("in_progress",)))
                       .order_by(Lobby.id.desc()).limit(10)).all()
-    return {"now": t, "size": QUEUE_SIZE,
+    mine = next((e for e, _ in queue if me and e.player_id == me.id), None)
+    return {"now": t, "size": QUEUE_SIZE, "dev": auth.DEV_LOGIN,
             "queue": [name for _, name in queue],
-            "in_queue": bool(me and any(e.player_id == me.id for e, _ in queue)),
+            "in_queue": mine is not None, "queued_at": mine.joined_at if mine else None,
             "banned_until": ban,
             "lobby": lobby_view(db, lobby, me) if lobby else None,
             "live": [{"id": x.id, "status": x.status} for x in live]}
@@ -493,6 +538,23 @@ def set_group(lobby_id: int, body: GroupIn, p: Player = Depends(auth.require_pla
         lobby.group_link = body.link.strip()
         lobby.status = "in_progress"
         return _done(db)
+
+
+if auth.DEV_LOGIN:
+    @router.post("/api/dev/fill-queue")
+    def fill_queue(db: Session = Depends(get_db)):
+        """Top the queue up with archived players (bots) so it pops."""
+        with LOCK:
+            busy = set(db.scalars(select(QueueEntry.player_id))) | set(db.scalars(
+                select(LobbyPlayer.player_id).join(Lobby).where(Lobby.status.in_(PRE_GAME))))
+            need = QUEUE_SIZE - len(db.scalars(select(QueueEntry.id)).all())
+            bots = [p for p in db.scalars(select(Player).where(Player.discord_id.is_(None))) if p.id not in busy]
+            t = clock()
+            for i, p in enumerate(rng.sample(bots, min(need, len(bots)))):
+                db.add(QueueEntry(player_id=p.id, joined_at=t + i * 1e-3))
+            db.flush()
+            try_pop(db)
+            return _done(db)
 
 
 @router.post("/api/lobbies/{lobby_id}/cancel")

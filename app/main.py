@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth
+from . import auth, play
 from .db import Base, Map, MapVote, Match, MatchPlayer, Player, Rating, Season, engine, get_db
 from .rating import MIN_GAMES, START_ELO, points, team_delta
 
@@ -19,10 +19,11 @@ SESSION_SECRET = os.getenv("SESSION_SECRET")
 if not SESSION_SECRET:
     raise RuntimeError("Set SESSION_SECRET to a long random string (see .env.example).")
 
-app = FastAPI(title="Ranked PUGs")
+app = FastAPI(title="Ranked PUGs", lifespan=play.lifespan)
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax",
                    https_only=os.getenv("HTTPS_ONLY", "0") == "1", max_age=60 * 60 * 24 * 30)
 app.include_router(auth.router)
+app.include_router(play.router)
 Base.metadata.create_all(engine)
 
 Position = Literal["offense", "defense"]
