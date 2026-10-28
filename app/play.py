@@ -36,7 +36,7 @@ READY_SECONDS = _int("READY_SECONDS", 30)
 PICK_SECONDS = _int("PICK_SECONDS", 30)          # per pick, then the best-rated player left is auto-picked
 BAN_SECONDS = _int("BAN_SECONDS", 30)            # per ban, then a random map is banned
 VOTE_SECONDS = _int("VOTE_SECONDS", 20)
-MAP_POOL_SIZE = _int("MAP_POOL_SIZE", 5)
+MAP_POOL_SIZE = _int("MAP_POOL_SIZE", 7)
 CAPTAIN_MODE = os.getenv("CAPTAIN_MODE", "top")  # top | random
 SERVERS = [s.strip() for s in os.getenv("SERVERS", "US East,US Central,US West,Europe").split(",") if s.strip()]
 

@@ -288,7 +288,8 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
 /* veto */
 .veto{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
 .vmap{position:relative;border-radius:14px;background:var(--panel-2);padding:8px;display:flex;flex-direction:column;gap:8px;transition:opacity .3s,filter .3s,transform .2s var(--ease)}
-.vmap svg{display:block;width:100%;height:auto;border-radius:8px;background:#000}
+.vmap svg,.vmap img{display:block;width:100%;height:auto;border-radius:8px;background:#000}
+.vmap img{aspect-ratio:4/3;object-fit:contain}
 .vmap .vrow{display:flex;align-items:baseline;justify-content:space-between;gap:6px;padding:0 2px}
 .vmap .vrow small{color:var(--muted)}
 .vmap.banned{opacity:.45;filter:grayscale(1)}
@@ -306,7 +307,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
 .server.mine{border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok)}
 .server b{font-variant-numeric:tabular-nums;color:var(--muted)}
 .hero{position:relative;border-radius:14px;overflow:hidden;margin-bottom:14px}
-.hero svg{display:block;width:100%;height:auto;max-height:200px;object-fit:cover;background:#000}
+.hero svg,.hero img{display:block;width:100%;height:auto;max-height:200px;object-fit:cover;background:#000}
 .hero div{position:absolute;left:0;right:0;bottom:0;padding:24px 14px 10px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff}
 .hero b{font-family:var(--display);font-size:28px;display:block;line-height:1}
 .hero span{font-size:13px;opacity:.85}
@@ -550,6 +551,12 @@ $("#search").addEventListener("input",e=>{
 /* ---------- maps ---------- */
 function seeded(str){let s=0;for(const ch of str)s=(s*31+ch.charCodeAt(0))>>>0;return()=>((s=(s*1664525+1013904223)>>>0)/4294967296)}
 let svgN=0; // pattern ids must be unique: a copy inside a hidden view would blank out the others
+// TagPro's own preview image; maps it doesn't host fall back to a drawn layout
+function mapImg(name){
+  const img=h("img",{src:"https://static.koalabeast.com/images/maps/"+encodeURIComponent(name)+".png",alt:`${name} map`,loading:"lazy"});
+  img.addEventListener("error",()=>img.outerHTML=mapSVG(name),{once:true});
+  return img;
+}
 function mapSVG(name){
   const rnd=seeded(name), W=40, H=22, id="g"+name.replace(/\W/g,"")+(++svgN);
   const blobs=Array.from({length:4+Math.floor(rnd()*3)},()=>({x:4+rnd()*15,y:3+rnd()*16,rx:4+rnd()*6,ry:3+rnd()*5}));
@@ -573,10 +580,7 @@ function renderMaps(){
   const canVote = ME.logged_in && ME.player;
   for(const m of MAPS){
     const card=h("article",{class:"map"});
-    // TagPro's own preview image; maps it doesn't host fall back to a drawn layout
-    const img=h("img",{src:"https://static.koalabeast.com/images/maps/"+encodeURIComponent(m.name)+".png",alt:`${m.name} map`,loading:"lazy"});
-    img.addEventListener("error",()=>img.outerHTML=mapSVG(m.name),{once:true});
-    card.append(img);
+    card.append(mapImg(m.name));
     const list=h("div",{class:"votes",tabindex:"0","aria-label":`Votes for ${m.name}`});
     if(!m.votes.length) list.append(h("div",{class:"hint"},"No votes yet."));
     m.votes.forEach(v=>list.append(h("div",{class:ME.player&&v.voter===ME.player.name?"me":null},v.voter+": ",h("b",{class:v.score>=0?"p":"n"},minus(v.score)))));
@@ -625,7 +629,7 @@ async function renderMapAdmin(){
     h("button",{class:"btn",type:"button",onclick:()=>{ if(confirm("Make the rotation the 12 current MLTP majors maps? Other maps are taken out of rotation, not deleted.")) act(()=>send("/use-mltp-majors","POST"),"Rotation set to the MLTP majors."); }},"Use MLTP majors"));
   const det=h("details",{open:MAP_ADMIN_OPEN,ontoggle:e=>MAP_ADMIN_OPEN=e.target.open},
     h("summary",{},`Manage maps (${all.filter(m=>m.active).length} in rotation)`),
-    h("p",{class:"note",style:"margin:8px 0 0;text-align:left"},"Changes apply to the next map veto. The veto draws five maps from those in rotation, weighted by their vote totals; with no votes yet, every map has the same chance."),
+    h("p",{class:"note",style:"margin:8px 0 0;text-align:left"},"Changes apply to the next map veto. The veto draws seven maps from those in rotation, weighted by their vote totals; with no votes yet, every map has the same chance."),
     addForm, ...rows, msg);
   box.replaceChildren(det); box.hidden=false;
 }
@@ -848,7 +852,7 @@ function viewVeto(L){
       h("p",{class:"muted",style:"margin:0 0 12px;font-size:13px"},"Maps were drawn by community vote chance. Captains take turns banning, blue first. The last map standing is played."),
       h("div",{class:"veto"},...L.map_pool.map(m=>{
         const card=h("div",{class:"vmap"+(m.banned_by?" banned "+m.banned_by:mine?" can":"")});
-        card.insertAdjacentHTML("beforeend",mapSVG(m.name));
+        card.append(mapImg(m.name));
         card.append(h("div",{class:"vrow"},h("b",{},m.name),h("small",{},chance(m.id))),
           m.banned_by ? h("span",{class:"stamp"},`Banned by ${teamName(m.banned_by)}`)
                       : h("button",{class:"pill ban",disabled:!mine,onclick:()=>act(L,"ban",{map_id:m.id}),"aria-label":`Ban ${m.name}`},"Ban"));
@@ -869,7 +873,7 @@ function viewServer(L){
 
 function viewMatch(L){
   const red=captain(L,"red"), meRed=!!(L.me&&L.me.is_captain&&L.me.team==="red");
-  const hero=h("div",{class:"hero"}); hero.insertAdjacentHTML("beforeend",mapSVG(L.map||"?"));
+  const hero=h("div",{class:"hero"}); if(L.map) hero.append(mapImg(L.map)); else hero.insertAdjacentHTML("beforeend",mapSVG("?"));
   hero.append(h("div",{},h("b",{},L.map||"Map not set"),h("span",{},L.server?`Server: ${L.server}`:"")));
   const team=t=>h("section",{class:"team "+t},h("h3",{},teamName(t)),...L.players.filter(p=>p.team===t).sort((a,b)=>b.is_captain-a.is_captain).map(chip));
   const group=h("div",{class:"group"});
