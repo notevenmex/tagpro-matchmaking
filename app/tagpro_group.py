@@ -1,4 +1,4 @@
-"""Create a private TagPro group with competitive settings, the drafted map and the voted server.
+"""Create a private TagPro group with PUG settings, the drafted map and the voted server region.
 
 TagPro has no public API for groups. The site's own group page (tagpro.koalabeast.com/groups/<id>)
 talks to the game server over socket.io, and the leader changes an option by sending
@@ -13,6 +13,9 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
+from typing import Awaitable, Callable
+
+from .group_host import GroupHost, Seat
 
 log = logging.getLogger("rankedpugs")
 
@@ -26,63 +29,36 @@ GROUP_PRESET = os.getenv("TAGPRO_GROUP_PRESET", "").strip()
 # Optional TagPro session cookie, if groups should be owned by a TagPro account instead of a guest.
 SESSION_COOKIE = os.getenv("TAGPRO_SESSION_COOKIE", "").strip()
 SESSION_COOKIE_NAME = os.getenv("TAGPRO_SESSION_COOKIE_NAME", "tagpro")
-# How long the bot keeps the group open waiting for a captain, then hands over leadership and leaves.
+# The bot hosts up to this many groups at once (one headless browser each, for the whole match; see
+# group_host.py). Past that, it creates the group, waits for a captain, hands over leadership and leaves.
+MAX_HOSTED = int(os.getenv("TAGPRO_MAX_HOSTED_GROUPS", "2"))
+# In hand-off mode: how long the bot waits for a captain before leaving anyway.
 LINGER_SECONDS = int(os.getenv("TAGPRO_BOT_LINGER_SECONDS", "600"))
 LEADER_EVENT = os.getenv("TAGPRO_LEADER_EVENT", "leader")  # socket event that makes someone else leader
 CREATE_TIMEOUT_MS = int(os.getenv("TAGPRO_CREATE_TIMEOUT_MS", "20000"))
 CHROMIUM_PATH = os.getenv("TAGPRO_CHROMIUM_PATH") or None  # only if not using `playwright install chromium`
 
-# Standard competitive group settings (the NALTP/league defaults that tagpro-comp-stats applies).
-COMPETITIVE_SETTINGS: dict[str, str] = {
+# Group settings for a PUG. Names and values are the live group page's, captured from tagpro.koalabeast.com
+# (client 3.2.1) on 2026-10-28: every setting is a string, checkboxes are "true"/"false". Anything not
+# listed stays at TagPro's default (physics, respawn timers, powerups).
+PUG_SETTINGS: dict[str, str] = {
     "mode": "classic",
     "redTeamName": "Red",
     "blueTeamName": "Blue",
-    "redTeamScore": "0",
-    "blueTeamScore": "0",
-    "time": "10",                      # minutes
-    "caps": "0",                       # no cap limit
-    "mercyRule": "0",
+    "time": "8",                       # minutes, 0-20 (TagPro's default is 6)
     "overtime": "true",
     "overtimeRespawnIncrement": "0",
-    "overtimeJukeJuice": "false",
-    "accel": "1",
-    "topspeed": "1",
-    "bounce": "1",
-    "playerRespawnTime": "3000",
-    "speedPadRespawnTime": "10000",
-    "dynamiteRespawnTime": "30000",
-    "buffRespawnTime": "60000",
-    "buffDelay": "true",
+    "caps": "0",                       # no cap limit
+    "mercyRule": "6",                  # 0-10: the game ends when a team leads by 6 caps (default 3)
+    "kissingFCs": "false",             # no-kiss: flag carriers who touch don't pop each other
     "potatoTime": "0",
     "noScript": "true",
     "respawnWarnings": "false",
-    "pupIndicators": "true",
-    "rollingBombBehavior": "default",
-    "powerupJukeJuice": "true",
-    "powerupTagPro": "true",
-    "powerupRollingBomb": "true",
-    "combinejjrb": "false",
-    "gravity": "false",
-    "jumpLimit": "2",
-    "speedLimit": "true",
-    "eggballLosingTeamStarts": "true",
 }
 
-
-# No-kiss lives under the group page's experimental settings toggle as "Kissing Flag Carriers". The bot
-# opens that toggle and switches it off through the page. If its socket name is known, setting
-# TAGPRO_NOKISS_SETTING=name=value sends it directly instead. TAGPRO_REQUIRE_NOKISS=0 lets a group
-# through even when the option can't be found (by default that counts as a failed attempt).
-REQUIRE_NOKISS = os.getenv("TAGPRO_REQUIRE_NOKISS", "1") == "1"
-
-
-def _no_kiss() -> dict[str, str]:
-    """The no-kiss option as a direct socket setting, if configured (see above)."""
-    raw = os.getenv("TAGPRO_NOKISS_SETTING", "").strip()
-    if not raw:
-        return {}
-    name, _, value = raw.partition("=")
-    return {name.strip(): value.strip() or "true"}
+# TagPro's server regions, exactly as the group page sends them in the "regions" setting. The site's
+# server vote uses these names (SERVERS in play.py), so the winner maps straight onto a region.
+REGIONS = ("US East", "US Central", "US West", "Europe", "Oceanic")
 
 
 def team_name(lobby_id: int) -> str:
@@ -90,9 +66,8 @@ def team_name(lobby_id: int) -> str:
 
 
 def group_settings(lobby_id: int | None = None) -> dict[str, str]:
-    """Competitive defaults + no-kiss + the match's team names + any overrides from TAGPRO_GROUP_SETTINGS
-    (a JSON object)."""
-    out = {**COMPETITIVE_SETTINGS, **_no_kiss()}
+    """PUG defaults + the match's team names + any overrides from TAGPRO_GROUP_SETTINGS (a JSON object)."""
+    out = dict(PUG_SETTINGS)
     if lobby_id is not None:
         out["redTeamName"] = out["blueTeamName"] = team_name(lobby_id)
     extra = os.getenv("TAGPRO_GROUP_SETTINGS", "").strip()
@@ -100,15 +75,6 @@ def group_settings(lobby_id: int | None = None) -> dict[str, str]:
         out.update({str(k): str(v) for k, v in json.loads(extra).items()})
     return out
 
-
-# Our server names (the SERVERS vote) -> words to look for in TagPro's server dropdown labels.
-DEFAULT_SERVER_KEYWORDS = {
-    "us east": ["new jersey", "newark", "new york", "virginia", "ashburn", "toronto", "atlanta", "miami", "east"],
-    "us central": ["dallas", "chicago", "central"],
-    "us west": ["los angeles", "seattle", "san francisco", "san jose", "west"],
-    "europe": ["europe", "london", "frankfurt", "amsterdam", "paris", "eu"],
-    "oceania": ["sydney", "oceania", "australia"],
-}
 
 # Map names whose TagPro value doesn't follow from the display name (from tagpro-comp-stats).
 MAP_ALIASES = {
@@ -141,23 +107,11 @@ def pick_map(options: list[tuple[str, str]], wanted: str | None) -> str | None:
     return None
 
 
-def pick_server(options: list[tuple[str, str]], wanted: str | None) -> str | None:
-    """Pick the dropdown value for a server, using TAGPRO_SERVER_MAP (JSON: our name -> TagPro label)
-    first, then the keyword table above, then a plain name match."""
-    if not wanted:
+def region_for(server: str | None) -> str | None:
+    """The TagPro region for a voted server name, or None to leave all regions on."""
+    if not server:
         return None
-    custom = {k.lower(): v for k, v in json.loads(os.getenv("TAGPRO_SERVER_MAP", "") or "{}").items()}
-    want = wanted.strip().lower()
-    candidates = []
-    if want in custom:
-        candidates.append(custom[want].lower())
-    candidates += DEFAULT_SERVER_KEYWORDS.get(want, [])
-    candidates.append(want)
-    for c in candidates:
-        for value, label in options:
-            if c and (c in (label or "").lower() or c == (value or "").lower()):
-                return value
-    return None
+    return next((r for r in REGIONS if r.lower() == server.strip().lower()), None)
 
 
 @dataclass
@@ -173,6 +127,7 @@ class GroupSpec:
     map_name: str | None
     server: str | None
     captains: list[Captain] = field(default_factory=list)
+    seats: list[Seat] = field(default_factory=list)  # all drafted players, captains included
 
     @property
     def name(self) -> str:
@@ -186,7 +141,7 @@ class GroupError(Exception):
 # Runs inside the page before its scripts: hooks the group socket as soon as it exists, so we see
 # every member event (including our own id) and can tell when a captain has joined.
 _INIT_SCRIPT = """
-window.__rp = {you: null, members: {}, settings: {}};
+window.__rp = {you: null, members: {}, settings: {}, chats: [], inGame: null};
 const __rpIv = setInterval(() => {
   const s = window.tagpro && tagpro.group && tagpro.group.socket;
   if (!s) return;
@@ -195,32 +150,24 @@ const __rpIv = setInterval(() => {
   s.on('member', m => { __rp.members[m.id] = m; });
   s.on('removed', m => { delete __rp.members[m.id]; });
   s.on('setting', st => { __rp.settings[st.name] = st.value; });
+  s.on('chat', c => { __rp.chats.push(c); });
+  s.on('game', g => { __rp.inGame = !!(g && g.gameId && g.gameServer); });
 }, 5);
 """
 
 
-# Finds the "Kissing Flag Carriers" control, marks it with data-rp-kiss, and says what kind it is.
-_FIND_KISS_JS = """
-() => {
-  const label = [...document.querySelectorAll('label, span, div, td, th, p, b, strong')]
-    .filter(el => el.offsetParent !== null && /kissing\\s+flag\\s+carriers/i.test(el.textContent))
-    .sort((a, b) => a.textContent.length - b.textContent.length)[0];
-  if (!label) return 'missing';
-  let el = label.htmlFor ? document.getElementById(label.htmlFor) : null;
-  for (let node = label; !el && node && node !== document.body; node = node.parentElement)
-    el = node.querySelector('select, input[type=checkbox]');
-  if (!el) return 'no control';
-  el.setAttribute('data-rp-kiss', '1');
-  return el.tagName === 'SELECT' ? 'select' : 'checkbox';
-}
-"""
-
-
 class PlaywrightGroupCreator:
-    """Creates groups by driving the real TagPro groups page in headless Chromium."""
+    """Creates groups by driving the real TagPro groups page in headless Chromium.
 
-    def __init__(self):
+    is_live(lobby_id) says whether the match still needs its group; on_missing(spec, names) is told
+    when the teams still aren't full after a while (with a "Red 3/4, Blue 4/4" summary). Both are only used while hosting.
+    """
+
+    def __init__(self, is_live: Callable[[int], Awaitable[bool]] | None = None,
+                 on_missing: Callable[[GroupSpec, str], Awaitable[None]] | None = None):
         self._tasks: set[asyncio.Task] = set()
+        self.is_live, self.on_missing = is_live, on_missing
+        self.hosting = 0
 
     async def create(self, spec: GroupSpec) -> str:
         from playwright.async_api import async_playwright  # optional dependency (requirements-bot.txt)
@@ -245,8 +192,11 @@ class PlaywrightGroupCreator:
             if isinstance(e, GroupError):
                 raise
             raise GroupError(f"{type(e).__name__}: {e}") from e
-        # Keep the group alive until a captain shows up, without holding up the DMs.
-        task = asyncio.create_task(self._hand_over(pw, browser, page, spec))
+        # Host the match (or hand over to a captain), without holding up the DMs.
+        if self.is_live and spec.seats and self.hosting < MAX_HOSTED:
+            task = asyncio.create_task(self._host(pw, browser, page, spec))
+        else:
+            task = asyncio.create_task(self._hand_over(pw, browser, page, spec))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
         return link
@@ -286,65 +236,52 @@ class PlaywrightGroupCreator:
 
     async def _configure(self, page, spec: GroupSpec):
         settings = group_settings(spec.lobby_id)
-        await _emit_settings(page, {"serverSelect": "true", "selectMaps": "true", **settings})
-        await page.wait_for_timeout(500)  # let the server/map dropdowns fill in
-        if not _no_kiss():
-            await self._disable_kissing(page, spec)
-        servers = await _options(page, 'select[name="server"]')
-        server = pick_server(servers, spec.server)
-        if spec.server and not server:
-            log.warning("lobby %s: no TagPro server matches %r (options: %s)", spec.lobby_id, spec.server,
-                        [label for _, label in servers])
-        maps = await _options(page, 'select[name="map"]') or await _options(page, "select.js-socket-setting")
+        region = region_for(spec.server)
+        if spec.server and not region:
+            log.warning("lobby %s: %r isn't a TagPro region (%s); leaving all regions on",
+                        spec.lobby_id, spec.server, ", ".join(REGIONS))
+        if region:
+            settings["regions"] = region
+        maps = await _options(page, 'select[name="map"]')
         map_value = pick_map(maps, spec.map_name)
         if spec.map_name and not map_value:
             log.warning("lobby %s: no TagPro map matches %r", spec.lobby_id, spec.map_name)
-        await _emit_settings(page, {k: v for k, v in (("server", server), ("map", map_value)) if v})
-        await page.wait_for_timeout(500)
+        if map_value:
+            settings["map"] = map_value
+        await _emit_settings(page, settings)
+        await page.wait_for_timeout(1000)
         applied = await page.evaluate("() => __rp.settings")
+        wrong = {k: applied[k] for k, v in settings.items() if k in applied and str(applied[k]) != v}
+        if "kissingFCs" in wrong:
+            raise GroupError(f"TagPro kept kissingFCs={wrong['kissingFCs']}; no-kiss didn't apply.")
+        if wrong:
+            log.warning("lobby %s: TagPro applied different values: %s", spec.lobby_id, wrong)
         missing = [k for k in settings if k not in applied]
         if missing:
-            log.info("lobby %s: TagPro didn't echo these settings back (may be unknown or unchanged): %s",
+            log.info("lobby %s: TagPro didn't echo these settings back (may be unchanged): %s",
                      spec.lobby_id, ", ".join(missing))
 
-    async def _disable_kissing(self, page, spec: GroupSpec):
-        """Open "experimental settings" and turn "Kissing Flag Carriers" off, like a leader would."""
-        before = dict(await page.evaluate("() => __rp.settings"))
-        found = await page.evaluate(_FIND_KISS_JS)
-        if found == "missing":  # hidden until the experimental toggle is on
-            toggle = page.get_by_label(re.compile("experimental", re.I))
-            if await toggle.count():
-                if not await toggle.first.is_checked():
-                    await toggle.first.check()
-            else:
-                toggle = page.get_by_text(re.compile("experimental", re.I))
-                if await toggle.count():
-                    await toggle.first.click()
-            await page.wait_for_timeout(500)
-            found = await page.evaluate(_FIND_KISS_JS)
-        if found == "select":
-            control = page.locator("[data-rp-kiss]")
-            off = await page.evaluate(
-                "() => { const o = [...document.querySelector('[data-rp-kiss]').options]"
-                ".find(o => /disabl|\\boff\\b|^no\\b/i.test(o.textContent.trim())); return o ? o.value : null; }")
-            if off is None:
-                found = "no off option"
-            else:
-                await control.select_option(off)
-        elif found == "checkbox":
-            control = page.locator("[data-rp-kiss]")
-            if await control.is_checked():
-                await control.uncheck()
-        if found not in ("select", "checkbox"):
-            msg = f"Couldn't turn off Kissing Flag Carriers ({found}); the group page may have changed."
-            if REQUIRE_NOKISS:
-                raise GroupError(msg)
-            log.warning("lobby %s: %s", spec.lobby_id, msg)
-            return
-        await page.wait_for_timeout(500)
-        after = await page.evaluate("() => __rp.settings")
-        changed = {k: v for k, v in after.items() if before.get(k) != v}
-        log.info("lobby %s: turned off Kissing Flag Carriers (server echoed %s)", spec.lobby_id, changed or "nothing")
+    async def _host(self, pw, browser, page, spec: GroupSpec):
+        self.hosting += 1
+        try:
+            async def live() -> bool:
+                return await self.is_live(spec.lobby_id)
+
+            async def missing(counts: str):
+                if self.on_missing:
+                    await self.on_missing(spec, counts)
+
+            await GroupHost(PageGroupConn(page), spec.lobby_id, spec.seats, live, missing).run()
+        except Exception:
+            log.exception("lobby %s: error while hosting the TagPro group", spec.lobby_id)
+        finally:
+            self.hosting -= 1
+            try:
+                await page.goto(f"{TAGPRO_URL}/groups/leave")
+            except Exception:
+                pass
+            await browser.close()
+            await pw.stop()
 
     async def _hand_over(self, pw, browser, page, spec: GroupSpec):
         try:
@@ -370,6 +307,25 @@ class PlaywrightGroupCreator:
         finally:
             await browser.close()
             await pw.stop()
+
+
+class PageGroupConn:
+    """group_host.GroupConn over the group page's own socket."""
+
+    def __init__(self, page):
+        self.page = page
+
+    async def state(self) -> dict:
+        return await self.page.evaluate(
+            "() => { const c = __rp.chats; __rp.chats = [];"
+            " return {you: __rp.you, members: __rp.members, chats: c, in_game: __rp.inGame}; }")
+
+    async def emit(self, event: str, payload=None):
+        await self.page.evaluate("([ev, p, has]) => has ? tagpro.group.socket.emit(ev, p) : tagpro.group.socket.emit(ev)",
+                                 [event, payload, payload is not None])
+
+    async def say(self, text: str):
+        await self.emit("chat", text[:120])
 
 
 async def _emit_settings(page, settings: dict[str, str]):

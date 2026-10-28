@@ -40,7 +40,7 @@ log = logging.getLogger("rankedpugs")
 
 ENABLED = os.getenv("TAGPRO_EU", "1") == "1"
 BASE_URL = os.getenv("TAGPRO_EU_URL", "https://tagpro.eu").rstrip("/")
-FIRST_CHECK_SECONDS = int(os.getenv("TAGPRO_EU_FIRST_CHECK_SECONDS", "540"))  # a game is 10 minutes
+FIRST_CHECK_SECONDS = int(os.getenv("TAGPRO_EU_FIRST_CHECK_SECONDS", "420"))  # a game is 8 minutes, or less on a mercy
 POLL_SECONDS = int(os.getenv("TAGPRO_EU_POLL_SECONDS", "90"))
 WAIT_MINUTES = int(os.getenv("TAGPRO_EU_WAIT_MINUTES", "25"))      # then captains report by hand
 GIVE_UP_HOURS = float(os.getenv("TAGPRO_EU_GIVE_UP_HOURS", "3"))  # stop searching altogether

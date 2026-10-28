@@ -24,42 +24,86 @@ userscripts do, instead of reimplementing the protocol.
 
 ## Settings the bot applies
 
-`COMPETITIVE_SETTINGS` in `app/tagpro_group.py`, taken from the league ("NALTP comp") defaults:
-classic mode, 10 minutes, no cap limit, no mercy rule, overtime on (no juke juice, no respawn
-increment in OT), 100% accel/top speed/bounce, default respawn timers (3s player, 10s boost,
-30s bomb, 60s powerup), buff delay on, no potato, `noScript` on, respawn warnings off, powerup
-indicators on, all powerups on, gravity off. Plus the drafted map, the voted server, and a private
-(not publicly listed) group with private games.
+Setting names and values below come from the live group page (client 3.2.1, captured 2026-10-28).
+Every setting is sent as a string; checkboxes are `"true"`/`"false"`.
 
-The group is named `PUG #<match id>` and both teams `PUG<match id>`, so the game can be found on
-tagpro.eu afterwards (see [tagpro-eu.md](tagpro-eu.md)). Overrides: `TAGPRO_GROUP_NAME`, `TAGPRO_TEAM_NAME`,
-`TAGPRO_GROUP_SETTINGS` (JSON), `TAGPRO_GROUP_PRESET` (pick a preset on the create form
-by label), `TAGPRO_SERVER_MAP` (our server names to TagPro's labels).
+| Setting | Value | Why |
+|---|---|---|
+| `mode` | `classic` | capture the flag |
+| `time` | `8` | PUG length in minutes (TagPro's default is 6) |
+| `overtime` | `true` | ties go to overtime, with `overtimeRespawnIncrement` `0` |
+| `caps` | `0` | no cap limit |
+| `mercyRule` | `6` | the game ends when a team leads by 6 (default 3) |
+| `kissingFCs` | `false` | no-kiss: flag carriers who touch don't pop each other |
+| `potatoTime` | `0` | no potato |
+| `noScript` | `true` | |
+| `respawnWarnings` | `false` | |
+| `redTeamName`, `blueTeamName` | `PUG<match id>` | so tagpro.eu can find the game (see [tagpro-eu.md](tagpro-eu.md)) |
+| `regions` | the voted region | one of `US East`, `US Central`, `US West`, `Europe`, `Oceanic` |
+| `map` | the drafted map | matched against the map dropdown's options |
 
-## No-kiss
+Everything else (physics, respawn timers, powerups) stays at TagPro's defaults. The group is
+private and not listed publicly, and is named `PUG #<match id>`.
 
-"No kiss" means two flag carriers who touch don't pop each other. On the group page it's
-**Kissing Flag Carriers**, under the experimental settings toggle. After applying the settings
-above, the bot turns that toggle on, finds the Kissing Flag Carriers control, and switches it to
-off/disabled, so the page sends the setting itself. The log line shows the socket setting the server
-echoed back. Once you know that name you can set `TAGPRO_NOKISS_SETTING=name=value` to send it
-directly and skip the UI step.
+The bot checks the settings the server echoes back. If `kissingFCs` comes back as anything but
+`false`, that attempt fails, so a group never goes out with kissing on. After 3 failures, the
+captains get a DM asking them to make the group themselves.
 
-If the control can't be found, that attempt counts as a failure, so a group never goes out with
-kissing on. After 3 failures the captains get the "make it yourself" DM. Set `TAGPRO_REQUIRE_NOKISS=0`
-to let groups through anyway, with a warning in the log.
+Overrides: `TAGPRO_GROUP_NAME`, `TAGPRO_TEAM_NAME`, `TAGPRO_GROUP_SETTINGS` (a JSON object merged
+over the table above), and `TAGPRO_GROUP_PRESET` (picks a preset on the create form by its label).
+
+## Servers
+
+A normal group has no server dropdown. Instead it has region checkboxes, all on by default, sent as
+`("setting", {name: "regions", value: "US East,US Central"})`. The site's server vote offers the
+same five region names (`SERVERS`), and the bot sets `regions` to the winning one alone.
+
+## Hosting the match
+
+The bot stays in the group as leader for the whole match (`app/group_host.py`):
+
+- The bot parks itself in the WAITING slot (team 4). On launch the page sends everyone else
+  to the game, and WAITING is the only slot that stays on the group page and keeps the socket.
+- Players pick their own team. When Red and Blue both have 4, the bot posts a 10-second
+  countdown in group chat and launches the game (`groupPlay`). If someone leaves during the
+  countdown, it cancels.
+- It launches by itself only once. To relaunch after a crash or an early end, or to start without
+  full teams, anyone on Red or Blue types `!start` in group chat.
+- If the teams still aren't full after 3 minutes, both captains get one DM with the counts.
+- While a game is live, anyone in the spectator or waiting slots who chats in the group is kicked
+  from the group (`kick`), once, with no other consequence. Between games nobody is kicked. "Live"
+  means the group's `game` event carries a `gameId` and `gameServer`, falling back to 15 minutes
+  after launch. The bot sits on the group page, so this only covers group chat. Spectators typing
+  inside the game itself aren't seen yet. Players on Red or Blue are never kicked. Neither is
+  anyone whose TagPro name matches a drafted player, as a safety net for players still in
+  spectators. Group names can't be trusted otherwise: guests show as "Some Ball", and alts and
+  renamed accounts don't match the registered name.
+- It leaves (`/groups/leave`) once the match is no longer live (reported, settled or cancelled),
+  or after 90 minutes at most.
+
+**Resources:** each hosted match keeps one headless Chromium open for its whole length, at roughly
+200 to 300 MB of RAM. `TAGPRO_MAX_HOSTED_GROUPS` (default 2) caps that. Matches over the cap get the
+old behavior: the bot creates the group, makes the first person to join the leader, and leaves.
+On a 512 MB instance, set the cap to 1 or run the bot on a bigger instance.
+
+Tunables: `TAGPRO_COUNTDOWN_SECONDS`, `TAGPRO_MISSING_DM_SECONDS`, `TAGPRO_MAX_HOST_MINUTES`,
+`TAGPRO_START_COMMAND`. Event names and payloads were read from the live global-group.js (client 3.2.1):
+`team` `{id, team}` with teams 0 playing, 1 red, 2 blue, 3 spectating and 4 waiting; `kick`
+and `leader` with a bare member id; `groupPlay` with no arguments; and received `chat`
+`{from: <name>, message, auth}`. They haven't been exercised in a real group yet.
 
 ## What could block automation
 
 - **Unverified against the live site.** The container this was built in can't reach
   tagpro.koalabeast.com. The flow is tested against a mock of the page (form labels, `#create-group-btn`,
-  `select[name=server]`, `select[name=map]`, the socket events above), so expect to adjust selectors
-  on the first real run. Errors are logged per lobby and stored on `group_jobs.error`.
+  `select[name=map]`, the socket events above). The setting names were since checked against the
+  live page, but the full flow hasn't run there yet, so expect small fixes on the first real run.
+  Errors are logged per lobby and stored on `group_jobs.error`.
 - **Captcha / bot protection.** If the create page shows a captcha, the bot reports it and falls
   back to the manual flow. It does not try to solve captchas.
-- **Leadership hand-off.** The bot makes the first person who joins the leader with the
-  `leader` socket event (configurable via `TAGPRO_LEADER_EVENT`). That event name is a guess; the
-  log line says whether it worked. If it doesn't, the bot still leaves after a captain joins, and
+- **Leadership hand-off (over the hosting cap only).** The bot makes the first person who joins the leader with the
+  `leader` socket event (configurable via `TAGPRO_LEADER_EVENT`). The live page has this event; the
+  log line says whether the hand-off worked. If it doesn't, the bot still leaves after a captain joins, and
   leadership should pass to the remaining member.
 - **Guest vs account.** Guests can create groups, so no TagPro account is needed. To create them
   from a named account, set `TAGPRO_SESSION_COOKIE` (copied from a logged-in browser). Keep it out
