@@ -97,7 +97,7 @@ match page. Research notes, settings and known risks: [docs/tagpro-groups.md](do
 
 Once a game is played, the site looks it up on [tagpro.eu](https://tagpro.eu) and uses it to set the
 final score and update Elo, so captains usually don't report anything. Each player's caps, returns
-and hold time are saved too, and their season totals show next to their name in the draft and match
+and hold time are saved too, and their per-game averages for the season show next to their name in the draft and match
 pop-ups. The group bot names the group `PUG #<match>` and both teams `PUG<match>`, which is how the
 game is found. tagpro.eu only has a game if someone in it runs the tagpro.eu userscript; if nothing
 turns up within 25 minutes, the captains report the score as before. Details and caveats:

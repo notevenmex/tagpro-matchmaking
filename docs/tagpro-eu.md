@@ -57,8 +57,8 @@ team changes), in the format documented on `https://tagpro.eu/?science`. `player
 and keeps caps, returns, tags, grabs, drops, pops, hold, prevent and time played. They're saved per
 match in `player_stats`, for the 8 players whose names match.
 
-The draft and match pop-ups show each player's **season totals** (caps · returns · hold time), with
-per-game averages and the number of games on hover. Totals are only from matches whose result came
+The draft and match pop-ups show each player's **per-game averages** this season (caps · returns ·
+hold time), with season totals and the number of games on hover. Totals are only from matches whose result came
 from tagpro.eu; captain-reported matches have no stats.
 
 ## Caveats

@@ -740,13 +740,13 @@ function popHead(L,title,sub,{closable=true,timer=false,go=false}={}){
       closable && h("button",{class:"x","aria-label":"Minimize",title:"Minimize",onclick:dismissLobby},"×")));
 }
 const timerBar=L=>L.deadline&&h("div",{class:"timer","aria-hidden":"true"},h("i",{"data-deadline":L.deadline,"data-total":L.step_seconds,"data-kind":"bar",style:`width:${100*Math.max(0,L.deadline-nowS())/L.step_seconds}%`}));
-/* season caps, returns and hold time from the player's tagpro.eu-read games */
+/* per-game caps, returns and hold time from the player's tagpro.eu-read games this season (totals on hover) */
 const mmss=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
 const statLine=p=>{const s=p.stats;
   if(!s) return h("span",{class:"stat",title:"No games read from tagpro.eu this season yet"},"No stats yet");
   const per=k=>(s[k]/s.games).toFixed(1);
-  return h("span",{class:"stat",title:`Season totals from ${s.games} tagpro.eu game${s.games===1?"":"s"}. Per game: ${per("caps")} caps, ${per("returns")} returns, ${mmss(Math.round(s.hold/s.games))} hold`},
-    h("b",{},String(s.caps))," caps · ",h("b",{},String(s.returns))," rets · ",h("b",{},mmss(s.hold))," hold");};
+  return h("span",{class:"stat",title:`Per game over ${s.games} tagpro.eu game${s.games===1?"":"s"} this season. Season totals: ${s.caps} caps, ${s.returns} returns, ${mmss(s.hold)} hold`},
+    h("b",{},per("caps"))," caps · ",h("b",{},per("returns"))," rets · ",h("b",{},mmss(Math.round(s.hold/s.games)))," hold per game");};
 const chip=p=>h("div",{class:"chip"},badge(p.rating,32),h("span",{class:"who"},h("span",{class:"name"},p.name,dot(p)),statLine(p)),p.is_captain&&h("span",{class:"cap",title:"Captain"},"CAPT"));
 
 function viewReady(L){
