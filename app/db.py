@@ -54,6 +54,16 @@ class SeasonTitle(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class StatTitle(Base):
+    """Settings for an automatic stat-leader title (titles.STAT_TITLES): its name, reward and
+    whether it's given out. The holder is worked out from each season's stats, not stored."""
+    __tablename__ = "stat_titles"
+    stat: Mapped[str] = mapped_column(String(16), primary_key=True)  # caps | returns | hold | kd
+    title: Mapped[str] = mapped_column(String(40))
+    reward: Mapped[str] = mapped_column(String(200), default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class SiteText(Base):
     """Admin-editable page text (Markdown), e.g. key "rules"."""
     __tablename__ = "site_texts"

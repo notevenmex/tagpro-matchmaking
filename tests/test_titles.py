@@ -13,7 +13,7 @@ def test_titles_admin_and_display():
 
     # awarding it shows the title on the player's profile and the leaderboard; archive tags are hidden
     assert a.patch(f"/api/admin/titles/{tid}", json={"player": "Warriors"}).status_code == 200
-    held = {"label": "S4 Champion", "reward": "Gold role"}
+    held = {"label": "S4 Champion", "reward": "Gold role", "season": 4}
     assert held in client().get("/api/players/Warriors").json()["titles"]
     row = next(p for p in client().get("/api/leaderboard").json() if p["name"] == "Warriors")
     assert held in row["titles"] and "tags" not in row

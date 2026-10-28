@@ -455,7 +455,7 @@ async function api(path, opts={}){
 // A player's current Elo; null while they're still in placements
 function badge(elo,size){const b=h("div",{class:"badge"+(elo==null?" new":""),title:elo==null?"In placements":`${elo} Elo`},elo==null?"New":String(elo));if(size){b.style.height=size+"px";b.style.fontSize=Math.round(size*.5)+"px"}return b}
 // season titles an admin awarded, e.g. "S4 Champion"; hover shows the reward
-const titleEls = ts => (ts||[]).map(t=>h("span",{class:"tag title",title:t.reward?`Reward: ${t.reward}`:null},t.label));
+const titleEls = ts => (ts||[]).map(t=>h("span",{class:"tag title",title:[t.value,t.reward&&`Reward: ${t.reward}`].filter(Boolean).join(" · ")||null},t.label));
 const posLabel = p => p==="defense"?"Defense":p==="flex"?"Flex":"Offense";
 const dotCls = p => "dot"+(p==="defense"?" d":p==="flex"?" f":"");
 const POSITIONS = [["offense","Offense"],["defense","Defense"],["flex","Flex (either)"]];
@@ -571,10 +571,11 @@ function renderSeasonTitles(){
   box.hidden=!list.length; if(!list.length){ box.replaceChildren(); return; }
   box.replaceChildren(h("h2",{},`Season ${SEASON_NO} titles and rewards`),...list.map(t=>h("div",{class:"trow"},
     h("b",{},t.title), t.reward?h("span",{class:"sub"},t.reward):null,
-    t.player?h("button",{class:"holder",onclick:()=>openPlayer(t.player)},t.player):h("span",{class:"holder sub",style:"cursor:default"},"Up for grabs"))));
+    t.player?h("button",{class:"holder",onclick:()=>openPlayer(t.player)},t.player,t.stat?h("span",{class:"sub",style:"font-weight:400"}," · "+t.value):null)
+            :h("span",{class:"holder sub",style:"cursor:default"},t.stat?t.value:"Up for grabs"))));
 }
 function renderTitleAdmin(){
-  const box=$("#title-admin"), msg=h("span",{class:"formmsg","aria-live":"polite"});
+  const box=$("#title-admin"), msg=h("span",{class:"formmsg","aria-live":"polite"}), statBox=h("div");
   const run=async(fn,ok)=>{ msg.textContent="Saving…"; msg.classList.remove("err");
     try{ await fn(); await loadTitles(); BOARD=await api("/api/leaderboard"); renderBoard(); toast(ok); }
     catch(err){ msg.textContent=err.message; msg.classList.add("err"); } };
@@ -587,7 +588,7 @@ function renderTitleAdmin(){
   const add=h("form",{class:"trow",style:"border-top:0",onsubmit:e=>{ e.preventDefault();
     run(()=>send("","POST",{season:+season.value,title:title.value,reward:reward.value,player:player.value||null}),`Added ${title.value}.`); }},
     h("span",{class:"sub"},"S"),season,title,reward,player,h("button",{class:"btn"},"Add title"));
-  const rows=TITLES.map(t=>{
+  const rows=TITLES.filter(t=>t.id!=null).map(t=>{
     const ti=inp({value:t.title,maxlength:"40","aria-label":`Title S${t.season} ${t.title}`});
     const re=inp({value:t.reward,maxlength:"200",placeholder:"No reward","aria-label":`Reward for ${t.title}`});
     const pl=inp({list:"names",value:t.player||"",placeholder:"Not awarded yet",maxlength:"24","aria-label":`Holder of ${t.title}`});
@@ -597,7 +598,27 @@ function renderTitleAdmin(){
   });
   box.replaceChildren(h("h2",{},"Season titles and rewards"),
     h("p",{class:"sub",style:"margin:0 0 6px;font-size:13px"},"Set up titles for any season with what they reward, and award each to a player now or later. Awarded titles show next to the player’s name, like “S4 Champion”, and the reward shows on hover. This season’s titles are listed on the Top 100."),
-    add, ...(rows.length?rows:[h("p",{class:"sub"},"No titles yet.")]), msg);
+    add, ...(rows.length?rows:[h("p",{class:"sub"},"No titles yet.")]), msg, statBox);
+  renderStatTitleAdmin(statBox, run);
+}
+// automatic stat-leader titles: admins rename them, set rewards or turn them off; holders are worked out from stats
+async function renderStatTitleAdmin(box, run){
+  let cfg; try{ cfg=await api("/api/admin/stat-titles"); }catch(err){ box.replaceChildren(h("p",{class:"err"},err.message)); return; }
+  const what={caps:"Most caps per game",returns:"Most returns per game",hold:"Most hold per game",kd:"Best K/D (tags per pop)"};
+  const holder=s=>TITLES.find(t=>t.stat===s&&t.season===SEASON_NO);
+  box.replaceChildren(h("h3",{style:"margin:18px 0 0"},"Stat leader titles"),
+    h("p",{class:"sub",style:"margin:4px 0 6px;font-size:13px"},`Given out automatically each season to the player with the best season average, among players with at least ${cfg.min_games} games read from tagpro.eu. They update as games come in.`),
+    ...cfg.titles.map(c=>{
+      const on=h("input",{type:"checkbox",checked:c.enabled,"aria-label":`Give out ${c.title}`});
+      const ti=h("input",{type:"text",value:c.title,maxlength:"40","aria-label":`Name for ${what[c.stat]}`});
+      const re=h("input",{type:"text",value:c.reward,maxlength:"200",placeholder:"No reward","aria-label":`Reward for ${c.title}`});
+      const cur=holder(c.stat);
+      return h("form",{class:"trow",onsubmit:e=>{ e.preventDefault();
+          run(()=>api(`/api/admin/stat-titles/${c.stat}`,{method:"PATCH",body:JSON.stringify({title:ti.value,reward:re.value,enabled:on.checked})}),"Saved."); }},
+        h("label",{style:"flex:0 0 auto"},on),ti,re,
+        h("span",{class:"sub",style:"flex:1 1 180px"},what[c.stat]+": "+(!c.enabled?"off":cur&&cur.player?`${cur.player} (${cur.value})`:cur?cur.value:"—")),
+        h("button",{class:"btn"},"Save"));
+    }));
 }
 
 /* ---------- search ---------- */
