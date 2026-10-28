@@ -36,13 +36,16 @@ by label), `TAGPRO_SERVER_MAP` (our server names to TagPro's labels).
 
 ## No-kiss
 
-"No kiss" means two flag carriers who touch don't pop each other. I couldn't find the socket name
-of this option anywhere public, and TagPro isn't reachable from where this was built, so it's
-configurable instead of guessed: open any group as leader with devtools on the Network > WS tab,
-toggle the no-kiss option, and copy the `setting` frame's name and value into
-`TAGPRO_NOKISS_SETTING` (e.g. `noKiss=true`). If the site's *Group Preset* list has a competitive
-no-kiss preset, `TAGPRO_GROUP_PRESET` is the simpler route. Until one of these is set, the bot logs
-a reminder and groups get the other competitive settings only.
+"No kiss" means two flag carriers who touch don't pop each other. On the group page it's
+**Kissing Flag Carriers**, under the experimental settings toggle. After applying the settings
+above, the bot turns that toggle on, finds the Kissing Flag Carriers control, and switches it to
+off/disabled, so the page sends the setting itself. The log line shows the socket setting the server
+echoed back. Once you know that name you can set `TAGPRO_NOKISS_SETTING=name=value` to send it
+directly and skip the UI step.
+
+If the control can't be found, that attempt counts as a failure, so a group never goes out with
+kissing on. After 3 failures the captains get the "make it yourself" DM. Set `TAGPRO_REQUIRE_NOKISS=0`
+to let groups through anyway, with a warning in the log.
 
 ## What could block automation
 

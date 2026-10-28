@@ -76,9 +76,9 @@ captains the link, so nobody has to set it up by hand:
 2. Create a bot in the Discord Developer Portal (the same app as login works), invite it to the
    community server, and put its token in `DISCORD_BOT_TOKEN`. Bots can only DM people who share a
    server with them.
-3. Set `AUTO_GROUP=1`, and `TAGPRO_NOKISS_SETTING` once you've confirmed the no-kiss option's name.
+3. Set `AUTO_GROUP=1`.
 
-The group is private, with standard competitive settings, the drafted map and the voted server. The
+The group is private, with standard competitive settings, Kissing Flag Carriers off (from the experimental settings), the drafted map and the voted server. The
 bot waits in the group until a captain joins, makes them leader, and leaves. If creation fails a
 few times, the captains get a DM asking the red captain to make the group and paste the link on the
 match page. Research notes, settings and known risks: [docs/tagpro-groups.md](docs/tagpro-groups.md).

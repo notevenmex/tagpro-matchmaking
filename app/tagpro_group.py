@@ -66,9 +66,15 @@ COMPETITIVE_SETTINGS: dict[str, str] = {
 }
 
 
+# No-kiss lives under the group page's experimental settings toggle as "Kissing Flag Carriers". The bot
+# opens that toggle and switches it off through the page. If its socket name is known, setting
+# TAGPRO_NOKISS_SETTING=name=value sends it directly instead. TAGPRO_REQUIRE_NOKISS=0 lets a group
+# through even when the option can't be found (by default that counts as a failed attempt).
+REQUIRE_NOKISS = os.getenv("TAGPRO_REQUIRE_NOKISS", "1") == "1"
+
+
 def _no_kiss() -> dict[str, str]:
-    """The no-kiss option. Its socket name isn't documented anywhere public, so it's configurable:
-    TAGPRO_NOKISS_SETTING=name=value (find it by toggling the option in a group with devtools open)."""
+    """The no-kiss option as a direct socket setting, if configured (see above)."""
     raw = os.getenv("TAGPRO_NOKISS_SETTING", "").strip()
     if not raw:
         return {}
@@ -183,6 +189,23 @@ const __rpIv = setInterval(() => {
 """
 
 
+# Finds the "Kissing Flag Carriers" control, marks it with data-rp-kiss, and says what kind it is.
+_FIND_KISS_JS = """
+() => {
+  const label = [...document.querySelectorAll('label, span, div, td, th, p, b, strong')]
+    .filter(el => el.offsetParent !== null && /kissing\\s+flag\\s+carriers/i.test(el.textContent))
+    .sort((a, b) => a.textContent.length - b.textContent.length)[0];
+  if (!label) return 'missing';
+  let el = label.htmlFor ? document.getElementById(label.htmlFor) : null;
+  for (let node = label; !el && node && node !== document.body; node = node.parentElement)
+    el = node.querySelector('select, input[type=checkbox]');
+  if (!el) return 'no control';
+  el.setAttribute('data-rp-kiss', '1');
+  return el.tagName === 'SELECT' ? 'select' : 'checkbox';
+}
+"""
+
+
 class PlaywrightGroupCreator:
     """Creates groups by driving the real TagPro groups page in headless Chromium."""
 
@@ -253,10 +276,10 @@ class PlaywrightGroupCreator:
 
     async def _configure(self, page, spec: GroupSpec):
         settings = group_settings()
-        if not _no_kiss() and not GROUP_PRESET:
-            log.warning("No-kiss isn't configured; set TAGPRO_NOKISS_SETTING (see docs/tagpro-groups.md)")
         await _emit_settings(page, {"serverSelect": "true", "selectMaps": "true", **settings})
         await page.wait_for_timeout(500)  # let the server/map dropdowns fill in
+        if not _no_kiss():
+            await self._disable_kissing(page, spec)
         servers = await _options(page, 'select[name="server"]')
         server = pick_server(servers, spec.server)
         if spec.server and not server:
@@ -273,6 +296,45 @@ class PlaywrightGroupCreator:
         if missing:
             log.info("lobby %s: TagPro didn't echo these settings back (may be unknown or unchanged): %s",
                      spec.lobby_id, ", ".join(missing))
+
+    async def _disable_kissing(self, page, spec: GroupSpec):
+        """Open "experimental settings" and turn "Kissing Flag Carriers" off, like a leader would."""
+        before = dict(await page.evaluate("() => __rp.settings"))
+        found = await page.evaluate(_FIND_KISS_JS)
+        if found == "missing":  # hidden until the experimental toggle is on
+            toggle = page.get_by_label(re.compile("experimental", re.I))
+            if await toggle.count():
+                if not await toggle.first.is_checked():
+                    await toggle.first.check()
+            else:
+                toggle = page.get_by_text(re.compile("experimental", re.I))
+                if await toggle.count():
+                    await toggle.first.click()
+            await page.wait_for_timeout(500)
+            found = await page.evaluate(_FIND_KISS_JS)
+        if found == "select":
+            control = page.locator("[data-rp-kiss]")
+            off = await page.evaluate(
+                "() => { const o = [...document.querySelector('[data-rp-kiss]').options]"
+                ".find(o => /disabl|\\boff\\b|^no\\b/i.test(o.textContent.trim())); return o ? o.value : null; }")
+            if off is None:
+                found = "no off option"
+            else:
+                await control.select_option(off)
+        elif found == "checkbox":
+            control = page.locator("[data-rp-kiss]")
+            if await control.is_checked():
+                await control.uncheck()
+        if found not in ("select", "checkbox"):
+            msg = f"Couldn't turn off Kissing Flag Carriers ({found}); the group page may have changed."
+            if REQUIRE_NOKISS:
+                raise GroupError(msg)
+            log.warning("lobby %s: %s", spec.lobby_id, msg)
+            return
+        await page.wait_for_timeout(500)
+        after = await page.evaluate("() => __rp.settings")
+        changed = {k: v for k, v in after.items() if before.get(k) != v}
+        log.info("lobby %s: turned off Kissing Flag Carriers (server echoed %s)", spec.lobby_id, changed or "nothing")
 
     async def _hand_over(self, pw, browser, page, spec: GroupSpec):
         try:
