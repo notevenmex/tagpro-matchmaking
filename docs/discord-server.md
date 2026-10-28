@@ -52,7 +52,7 @@ members of the server. Put "voice is required in ranked matches" in `#rules`.
 1. Go to <https://discord.com/developers/applications> and open the app you made for Discord login
    (or **New Application** if you haven't yet).
 2. **Bot** tab: set the name and avatar, click **Reset Token**, and copy it. That's `DISCORD_BOT_TOKEN`.
-   Keep it secret: put it only in Railway's variables (or your local `.env`), never in the repo or a chat.
+   Keep it secret: put it only in Render's environment variables (or your local `.env`), never in the repo or a chat.
    Leave **Public Bot** off and all **Privileged Gateway Intents** off; the bot doesn't need them.
 3. Invite it to your server with this link, replacing `CLIENT_ID` with the app's **Application ID**
    (General Information tab):
@@ -92,7 +92,7 @@ Then in **Server Settings > Roles**, drag the bot's role (**Ranked PUGs** or the
 
 ### 4. Turn it on
 
-Add to the site's environment (Railway > your service > Variables):
+Add to the site's environment (Render > your service > Environment):
 
 ```
 DISCORD_BOT_TOKEN=...
