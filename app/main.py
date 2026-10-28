@@ -11,9 +11,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, chat, maps_admin, pages, play, postmatch, reporting, runback, titles
-from .db import Base, Map, MapVote, Player, Rating, Season, engine, get_db
-from .rating import PLACEMENT_MULTIPLIER, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, rating_out, record_match
+from . import auth, chat, maps_admin, pages, play, postmatch, private_queues, reporting, runback, titles
+from .db import (Base, Map, MapVote, Match, MatchPlayer, Player, PrivateQueue, QueueRating, Rating, Season,
+                 add_missing_columns, engine, get_db)
+from .rating import (PLACEMENT_MULTIPLIER, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, find_rating, rating_out,
+                     record_match)
 
 SESSION_SECRET = os.getenv("SESSION_SECRET")
 if not SESSION_SECRET:
@@ -24,6 +26,7 @@ app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax"
                    https_only=os.getenv("HTTPS_ONLY", "0") == "1", max_age=60 * 60 * 24 * 30)
 app.include_router(auth.router)
 app.include_router(play.router)
+app.include_router(private_queues.router)
 app.include_router(reporting.router)
 app.include_router(runback.router)
 app.include_router(postmatch.router)
@@ -32,6 +35,7 @@ app.include_router(maps_admin.router)
 app.include_router(titles.router)
 app.include_router(chat.router)
 Base.metadata.create_all(engine)
+add_missing_columns()
 
 Position = Literal["offense", "defense"]               # what someone played in a given match
 Preference = Literal["offense", "defense", "flex"]   # what a player prefers; they can change it any time
@@ -154,15 +158,23 @@ def switch_account(body: AccountIn, request: Request, db: Session = Depends(get_
 
 # ---------- leaderboard & players ----------
 @app.get("/api/leaderboard")
-def leaderboard(limit: int = 100, db: Session = Depends(get_db)):
+def leaderboard(limit: int = 100, queue_id: int | None = None, db: Session = Depends(get_db)):
+    """The Top 100: the general Elo, or a private queue's own Elo with queue_id."""
     s = active_season(db)
-    rows = db.execute(
-        select(Rating, Player).join(Player, Rating.player_id == Player.id)
-        .where(Rating.season_id == s.id, Rating.games >= MIN_GAMES)
-        .order_by(Rating.elo.desc()).limit(min(max(limit, 1), 500))
-    ).all()
+    R = Rating if queue_id is None else QueueRating
+    stmt = select(R, Player).join(Player, R.player_id == Player.id).where(R.season_id == s.id, R.games >= MIN_GAMES)
+    if queue_id is not None:
+        stmt = stmt.where(QueueRating.queue_id == queue_id)
+    rows = db.execute(stmt.order_by(R.elo.desc()).limit(min(max(limit, 1), 500))).all()
     held = titles.titles_by_player(db, (p.id for _, p in rows))
     return [{**player_out(p, held[p.id]), **rating_out(r), "rank": i + 1} for i, (r, p) in enumerate(rows)]
+
+
+@app.get("/api/queues")
+def queues(db: Session = Depends(get_db)):
+    """Every private queue, for the leaderboard tabs."""
+    return [{"id": q.id, "name": q.name} for q in
+            db.scalars(select(PrivateQueue).where(PrivateQueue.archived.is_(False)).order_by(PrivateQueue.name))]
 
 
 @app.get("/api/rating-rules")
@@ -186,9 +198,28 @@ def player_detail(name: str, request: Request, db: Session = Depends(get_db)):
     if not p:
         raise HTTPException(404, f"No player named “{name}”.")
     s = active_season(db)
-    r = db.scalar(select(Rating).where(Rating.player_id == p.id, Rating.season_id == s.id))
+
+    def track(queue_id: int | None) -> dict:
+        """One Elo (general, or a private queue's) with its graph: Elo after each match this season,
+        hidden during placements like the Elo itself."""
+        r = find_rating(db, p.id, s.id, queue_id)
+        games = db.execute(
+            select(MatchPlayer.elo_after, MatchPlayer.team, Match.winner).join(Match, MatchPlayer.match_id == Match.id)
+            .where(MatchPlayer.player_id == p.id, Match.season_id == s.id,
+                   Match.queue_id.is_(None) if queue_id is None else Match.queue_id == queue_id).order_by(Match.id)
+        ).all()
+        placed = bool(r) and r.games >= PLACEMENT_GAMES
+        return {"rating": rating_out(r), "placed": placed,
+                "history": [{"elo": elo, "won": team == winner} for elo, team, winner in games] if placed else None}
+
+    general = track(None)
+    private = [{"id": q.id, "name": q.name, **track(q.id)} for q in db.scalars(
+        select(PrivateQueue).join(QueueRating, QueueRating.queue_id == PrivateQueue.id)
+        .where(QueueRating.player_id == p.id, QueueRating.season_id == s.id).order_by(PrivateQueue.name))]
     return {**player_out(p, titles.titles_by_player(db, [p.id])[p.id]),
-            "rating": rating_out(r),
+            "rating": general["rating"], "history": general["history"],
+            # the player's Elo in each private queue they've played this season
+            "queues": [{k: q[k] for k in ("id", "name", "rating", "history")} for q in private],
             # recent matches, each linking to its Post Match page; the player can hide them (postmatch.py)
             **postmatch.recent_matches(db, p, request.session.get("discord_id"))}
 

@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timezone
 
 from sqlalchemy import (JSON, Boolean, DateTime, Float, ForeignKey, Integer, String,
-                        UniqueConstraint, create_engine)
+                        UniqueConstraint, create_engine, inspect, text)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 
@@ -134,6 +134,7 @@ class Match(Base):
     red_score: Mapped[int | None] = mapped_column(Integer, nullable=True)   # caps; empty for old admin entries
     blue_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     reported_by: Mapped[str] = mapped_column(String(32))  # admin's Discord id, or "captains" when both reports matched
+    queue_id: Mapped[int | None] = mapped_column(ForeignKey("private_queues.id"), nullable=True)  # None: general Elo
     played_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -153,6 +154,48 @@ class QueueEntry(Base):
     __tablename__ = "queue"
     id: Mapped[int] = mapped_column(primary_key=True)
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), unique=True)
+    joined_at: Mapped[float] = mapped_column(Float)
+
+
+class PrivateQueue(Base):
+    """An invite-only queue (e.g. "S Queue") with its own Elo. Admins pick the members; members can
+    queue in it and in the general queue at the same time (see private_queues.py)."""
+    __tablename__ = "private_queues"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(40))  # unique among queues that aren't archived
+    created_at: Mapped[float] = mapped_column(Float)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)  # deleted, but its matches and Elo are kept
+
+
+class QueueRating(Base):
+    """A player's Elo in one private queue, per season. Works exactly like Rating, which is the
+    general queue's Elo."""
+    __tablename__ = "queue_ratings"
+    __table_args__ = (UniqueConstraint("player_id", "season_id", "queue_id"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
+    season_id: Mapped[int] = mapped_column(ForeignKey("seasons.id"))
+    queue_id: Mapped[int] = mapped_column(ForeignKey("private_queues.id"))
+    elo: Mapped[int] = mapped_column(Integer, default=1000)
+    games: Mapped[int] = mapped_column(Integer, default=0)
+    wins: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class PrivateQueueMember(Base):
+    __tablename__ = "private_queue_members"
+    __table_args__ = (UniqueConstraint("queue_id", "player_id"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    queue_id: Mapped[int] = mapped_column(ForeignKey("private_queues.id"))
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
+
+
+class PrivateQueueEntry(Base):
+    """A member waiting in a private queue. Like QueueEntry, but a player can be in several queues."""
+    __tablename__ = "private_queue_entries"
+    __table_args__ = (UniqueConstraint("queue_id", "player_id"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    queue_id: Mapped[int] = mapped_column(ForeignKey("private_queues.id"))
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
     joined_at: Mapped[float] = mapped_column(Float)
 
 
@@ -206,6 +249,7 @@ class Lobby(Base):
     group_link: Mapped[str | None] = mapped_column(String(200), nullable=True)
     match_id: Mapped[int | None] = mapped_column(ForeignKey("matches.id"), nullable=True)
     note: Mapped[str] = mapped_column(String(200), default="")  # why it was cancelled, etc.
+    queue_id: Mapped[int | None] = mapped_column(ForeignKey("private_queues.id"), nullable=True)  # None: general queue
 
 
 class LobbyPlayer(Base):
@@ -335,7 +379,6 @@ class VoiceRoom(Base):
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
-
 class ChatMessage(Base):
     """One line of a match's lobby chat (see chat.py). channel "all" is for all 8 players; "red" or
     "blue" is team chat. Kept after the match so the Post Match page and admins can read it back.
@@ -360,6 +403,21 @@ class ChatMute(Base):
     until: Mapped[float] = mapped_column(Float)
     reason: Mapped[str] = mapped_column(String(200), default="")
     muted_by: Mapped[str] = mapped_column(String(32))
+
+
+def add_missing_columns():
+    """create_all() makes new tables but never changes existing ones. Add any new nullable columns to
+    tables that already exist, so a database from an older version keeps working."""
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if not insp.has_table(table.name):
+                continue
+            have = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name not in have and col.nullable:
+                    conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN {col.name} {col.type.compile(engine.dialect)}'))
+
 
 def get_db():
     db = SessionLocal()

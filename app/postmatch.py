@@ -16,8 +16,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import auth, runback, tagpro_eu
-from .db import Lobby, LobbyPlayer, Map, Match, MatchPlayer, Player, PlayerPrefs, PlayerStat, Rating, get_db
-from .rating import PLACEMENT_GAMES
+from .db import Lobby, LobbyPlayer, Map, Match, MatchPlayer, Player, PlayerPrefs, PlayerStat, PrivateQueue, get_db
+from .rating import PLACEMENT_GAMES, find_rating
 
 RECENT_CHOICES = (5, 10, 20)
 STATS = ("caps", "grabs", "hold", "returns", "tags", "pops", "prevent", "drops", "played")
@@ -30,9 +30,10 @@ def prefs(db: Session, player_id: int) -> PlayerPrefs:
     return db.get(PlayerPrefs, player_id) or PlayerPrefs(player_id=player_id, show_recent=True, recent_count=10)
 
 
-def _placed(db: Session, player_id: int, season_id: int) -> bool:
-    games = db.scalar(select(Rating.games).where(Rating.player_id == player_id, Rating.season_id == season_id))
-    return (games or 0) >= PLACEMENT_GAMES
+def _placed(db: Session, player_id: int, season_id: int, queue_id: int | None = None) -> bool:
+    """Done with placements in that season's general Elo, or in a private queue's own Elo."""
+    r = find_rating(db, player_id, season_id, queue_id)
+    return (r.games if r else 0) >= PLACEMENT_GAMES
 
 
 def verified_by(m: Match) -> str:
@@ -53,7 +54,7 @@ def match_view(db: Session, m: Match, me: Player | None) -> dict:
 
     def player(mp: MatchPlayer, p: Player) -> dict:
         st = stats.get(p.id)
-        placed = _placed(db, p.id, m.season_id)  # Elo stays hidden during placements, like everywhere else
+        placed = _placed(db, p.id, m.season_id, m.queue_id)  # Elo stays hidden during placements, like everywhere else
         return {"name": p.tagpro_name, "position": mp.position, "is_captain": caps.get(p.id, False),
                 "elo_after": mp.elo_after if placed else None,
                 "change": mp.elo_after - mp.elo_before if placed else None,
@@ -100,13 +101,15 @@ def recent_matches(db: Session, p: Player, viewer_did: str | None) -> dict:
         .outerjoin(Map, Match.map_id == Map.id).where(MatchPlayer.player_id == p.id)
         .order_by(Match.played_at.desc(), Match.id.desc()).limit(pr.recent_count)).all()
     for mp, m, mname in rows:
-        if m.season_id not in placed:
-            placed[m.season_id] = _placed(db, p.id, m.season_id)
+        key = (m.season_id, m.queue_id)
+        if key not in placed:
+            placed[key] = _placed(db, p.id, *key)
         out["recent"].append({
+            "queue": db.scalar(select(PrivateQueue.name).where(PrivateQueue.id == m.queue_id)) if m.queue_id else None,
             "match_id": m.id, "map": mname, "team": mp.team, "position": mp.position, "won": mp.team == m.winner,
             "red_score": m.red_score, "blue_score": m.blue_score,
             # Elo changes stay hidden until placements are done, like the Elo itself
-            "change": mp.elo_after - mp.elo_before if placed[m.season_id] else None,
+            "change": mp.elo_after - mp.elo_before if placed[key] else None,
             "played_at": m.played_at.isoformat()})
     return out
 

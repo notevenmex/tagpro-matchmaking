@@ -40,7 +40,10 @@ def test_register_vote_and_report():
     detail = u.get("/api/players/NewGuy").json()
     assert detail["recent"][0]["won"] is True and detail["recent"][0]["change"] is None  # hidden in placements
     assert detail["rating"] == {"elo": None, "games": 1, "wins": 1, "placements_left": 9}
-    assert u.get("/api/players/Spud").json()["recent"][0]["change"] == ch["Spud"]["change"]
+    spud = u.get("/api/players/Spud").json()
+    assert spud["recent"][0]["change"] == ch["Spud"]["change"]
+    assert spud["history"][-1] == {"elo": ch["Spud"]["after"], "won": True}  # Elo graph data
+    assert detail["history"] is None  # no graph during placements
 
     bad = dict(body, players=body["players"] + [{"tagpro_name": "Nobody", "team": "red", "position": "offense"}])
     assert "Nobody" in a.post("/api/matches", json=bad).json()["detail"]

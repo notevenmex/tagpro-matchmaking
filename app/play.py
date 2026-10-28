@@ -20,9 +20,9 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from . import auth, restrictions
-from .db import (GroupJob, Lobby, LobbyPlayer, Map, Player, QueueBan, QueueEntry, Rating, Season,
-                 SessionLocal, get_db)
-from .rating import START_ELO
+from .db import (GroupJob, Lobby, LobbyPlayer, Map, Player, PrivateQueue, PrivateQueueEntry,
+                 PrivateQueueMember, QueueBan, QueueEntry, Season, SessionLocal, get_db)
+from .rating import START_ELO, find_rating
 
 log = logging.getLogger("rankedpugs")
 
@@ -64,9 +64,10 @@ def _season(db: Session) -> Season:
     return s
 
 
-def _main_elo(db: Session, p: Player, season_id: int) -> float:
-    elo = db.scalar(select(Rating.elo).where(Rating.player_id == p.id, Rating.season_id == season_id))
-    return START_ELO if elo is None else elo
+def _main_elo(db: Session, p: Player, season_id: int, queue_id: int | None = None) -> float:
+    """The player's Elo in this queue (the general Elo, or a private queue's own)."""
+    r = find_rating(db, p.id, season_id, queue_id)
+    return START_ELO if r is None else r.elo
 
 
 def _lobby_players(db: Session, lobby: Lobby) -> list[tuple[LobbyPlayer, Player]]:
@@ -97,26 +98,60 @@ def turn(db: Session, lobby: Lobby) -> str | None:
 
 
 # ---------- state transitions ----------
+def clear_queues(db: Session, player_ids: list[int]):
+    """Take these players out of every queue, general and private."""
+    db.execute(delete(QueueEntry).where(QueueEntry.player_id.in_(player_ids)))
+    db.execute(delete(PrivateQueueEntry).where(PrivateQueueEntry.player_id.in_(player_ids)))
+    db.flush()
+
+
+def _full_queue(db: Session, held: set[int]) -> tuple[int | None, list] | None:
+    """The first queue with QUEUE_SIZE players waiting (general first, then private queues), and
+    its oldest QUEUE_SIZE entries. Players in held are skipped."""
+    entries = db.scalars(select(QueueEntry).where(QueueEntry.player_id.not_in(held))
+                         .order_by(QueueEntry.joined_at, QueueEntry.id).limit(QUEUE_SIZE)).all()
+    if len(entries) == QUEUE_SIZE:
+        return None, entries
+    for qid in db.scalars(select(PrivateQueue.id).where(PrivateQueue.archived.is_(False)).order_by(PrivateQueue.id)):
+        entries = db.scalars(select(PrivateQueueEntry).where(PrivateQueueEntry.queue_id == qid,
+                                                             PrivateQueueEntry.player_id.not_in(held))
+                             .order_by(PrivateQueueEntry.joined_at, PrivateQueueEntry.id).limit(QUEUE_SIZE)).all()
+        if len(entries) == QUEUE_SIZE:
+            return qid, entries
+    return None
+
+
 def try_pop(db: Session):
-    """Start a lobby for every full group of QUEUE_SIZE players, oldest first. Players waiting on a
-    Salty Runback vote keep their place but are skipped (runback.py)."""
+    """Start a lobby for every full group of QUEUE_SIZE players in any queue, oldest first.
+    Everyone in it leaves all their other queues. Players waiting on a Salty Runback vote keep
+    their place but are skipped (runback.py)."""
     from . import runback  # imports this module
     held = runback.held_ids(db)
     while True:
-        entries = db.scalars(select(QueueEntry).where(QueueEntry.player_id.not_in(held))
-                             .order_by(QueueEntry.joined_at, QueueEntry.id).limit(QUEUE_SIZE)).all()
-        if len(entries) < QUEUE_SIZE:
+        full = _full_queue(db, held)
+        if not full:
             return
+        queue_id, entries = full
         s = _season(db)
         t = clock()
-        lobby = Lobby(season_id=s.id, status="ready_check", created_at=t, deadline=t + READY_SECONDS, map_pool=[])
+        lobby = Lobby(season_id=s.id, status="ready_check", created_at=t, deadline=t + READY_SECONDS, map_pool=[],
+                      queue_id=queue_id)
         db.add(lobby)
         db.flush()
         for e in entries:
             p = db.get(Player, e.player_id)
-            db.add(LobbyPlayer(lobby_id=lobby.id, player_id=p.id, joined_at=e.joined_at, elo=_main_elo(db, p, s.id)))
-            db.delete(e)
-        db.flush()
+            db.add(LobbyPlayer(lobby_id=lobby.id, player_id=p.id, joined_at=e.joined_at, elo=_main_elo(db, p, s.id, queue_id)))
+        clear_queues(db, [e.player_id for e in entries])
+
+
+def requeue(db: Session, lobby: Lobby, player_id: int, joined_at: float):
+    """Put a player back in the queue this lobby came from, keeping their place."""
+    if lobby.queue_id is None:
+        if not db.scalar(select(QueueEntry.id).where(QueueEntry.player_id == player_id)):
+            db.add(QueueEntry(player_id=player_id, joined_at=joined_at))
+    elif db.scalar(select(PrivateQueueMember.id).where(PrivateQueueMember.queue_id == lobby.queue_id,
+                                                       PrivateQueueMember.player_id == player_id)):
+        db.add(PrivateQueueEntry(queue_id=lobby.queue_id, player_id=player_id, joined_at=joined_at))
 
 
 def fail_ready_check(db: Session, lobby: Lobby, offenders: set[int], why: str):
@@ -128,7 +163,7 @@ def fail_ready_check(db: Session, lobby: Lobby, offenders: set[int], why: str):
             restrictions.penalize_ready_check(db, lp.player_id, lobby.id)
             names.append(p.tagpro_name)
         else:
-            db.add(QueueEntry(player_id=lp.player_id, joined_at=lp.joined_at))
+            requeue(db, lobby, lp.player_id, lp.joined_at)
     lobby.status, lobby.deadline = "cancelled", t
     lobby.note = f"{', '.join(names)} {why}. Everyone else is back in the queue."[:200]
     db.flush()
@@ -355,6 +390,11 @@ async def ws(websocket: WebSocket):
 
 
 # ---------- views ----------
+def queue_name(db: Session, lobby: Lobby) -> str | None:
+    """The private queue a match came from, or None for the general queue."""
+    return db.scalar(select(PrivateQueue.name).where(PrivateQueue.id == lobby.queue_id)) if lobby.queue_id else None
+
+
 def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
     from .reporting import score_view
     from . import runback, tagpro_eu, voice  # they import this module
@@ -366,6 +406,7 @@ def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
     map_name = db.get(Map, lobby.map_id).name if lobby.map_id else None
     return {
         "id": lobby.id, "status": lobby.status, "deadline": lobby.deadline, "note": lobby.note,
+        "queue": queue_name(db, lobby),
         "turn": t, "pick_order": PICK_ORDER, "step_seconds": STEP_SECONDS.get(lobby.status),
         "players": [{"name": p.tagpro_name, "position": p.position, "elo": round(lp.elo), "tags": p.tags or [],
                      "accepted": lp.accepted, "team": lp.team, "is_captain": lp.is_captain, "pick_no": lp.pick_no,
@@ -411,7 +452,10 @@ def play_state(request: Request, db: Session = Depends(get_db)):
                       .order_by(Lobby.id.desc()).limit(10)).all()
     mine = next((e for e, _ in queue if me and e.player_id == me.id), None)
     from .reporting import queue_block
+    from . import private_queues  # imports this module
+    admin = auth.is_admin(request.session.get("discord_id"), me)
     return {"now": t, "size": QUEUE_SIZE, "dev": auth.DEV_LOGIN,
+            "queues": private_queues.views(db, me, admin),  # private queues this player can see
             "queue": [name for _, name in queue],
             "in_queue": mine is not None, "queued_at": mine.joined_at if mine else None,
             **(restrictions.ban_info(db, me.id) if me else {"banned_until": None, "ban_kind": None, "ban_reason": None}),
@@ -429,7 +473,7 @@ def live_out(db: Session, lobby: Lobby) -> dict:
     lps = _lobby_players(db, lobby)
     avg = lambda xs: round(sum(xs) / len(xs)) if xs else None  # noqa: E731
     team = lambda t: [(lp, p) for lp, p in lps if lp.team == t]  # noqa: E731
-    return {"id": lobby.id, "status": lobby.status,
+    return {"id": lobby.id, "status": lobby.status, "queue": queue_name(db, lobby),
             "map": db.get(Map, lobby.map_id).name if lobby.map_id else None, "server": lobby.server,
             "group_link": lobby.group_link,  # anyone can join the group to spectate
             "avg_elo": avg([lp.elo for lp, _ in lps]),
@@ -471,15 +515,20 @@ def _done(db: Session):
     return {"ok": True}
 
 
+def check_queue_rules(db: Session, p: Player):
+    """Every rule for joining any queue, general or private. Raises an HTTPException if p can't."""
+    restrictions.check_can_queue(db, p)
+    from .reporting import queue_block
+    blocked = queue_block(db, p.id)  # captains wait for a verified score; everyone else can go
+    if blocked:
+        raise HTTPException(409, blocked)
+
+
 @router.post("/api/queue")
 def join_queue(p: Player = Depends(auth.require_player), db: Session = Depends(get_db)):
     with LOCK:
         t = clock()
-        restrictions.check_can_queue(db, p)
-        from .reporting import queue_block
-        blocked = queue_block(db, p.id)  # captains wait for a verified score; everyone else can go
-        if blocked:
-            raise HTTPException(409, blocked)
+        check_queue_rules(db, p)
         if not db.scalar(select(QueueEntry).where(QueueEntry.player_id == p.id)):
             db.add(QueueEntry(player_id=p.id, joined_at=t))
             db.flush()
@@ -591,16 +640,26 @@ def set_group(lobby_id: int, body: GroupIn, p: Player = Depends(auth.require_pla
 
 if auth.DEV_LOGIN:
     @router.post("/api/dev/fill-queue")
-    def fill_queue(db: Session = Depends(get_db)):
-        """Top the queue up with archived players (bots) so it pops."""
+    def fill_queue(queue_id: int | None = None, db: Session = Depends(get_db)):
+        """Top the queue (or private queue queue_id) up with archived players (bots) so it pops.
+        Bots added to a private queue become members of it."""
         with LOCK:
-            busy = set(db.scalars(select(QueueEntry.player_id))) | set(db.scalars(
-                select(LobbyPlayer.player_id).join(Lobby).where(Lobby.status.in_(PRE_GAME))))
-            need = QUEUE_SIZE - len(db.scalars(select(QueueEntry.id)).all())
+            if queue_id is None:
+                waiting = set(db.scalars(select(QueueEntry.player_id)))
+            else:
+                waiting = set(db.scalars(select(PrivateQueueEntry.player_id).where(PrivateQueueEntry.queue_id == queue_id)))
+            busy = waiting | set(db.scalars(select(LobbyPlayer.player_id).join(Lobby).where(Lobby.status.in_(PRE_GAME))))
+            need = QUEUE_SIZE - len(waiting)
             bots = [p for p in db.scalars(select(Player).where(Player.discord_id.is_(None))) if p.id not in busy]
             t = clock()
             for i, p in enumerate(rng.sample(bots, min(need, len(bots)))):
-                db.add(QueueEntry(player_id=p.id, joined_at=t + i * 1e-3))
+                if queue_id is None:
+                    db.add(QueueEntry(player_id=p.id, joined_at=t + i * 1e-3))
+                    continue
+                if not db.scalar(select(PrivateQueueMember.id).where(PrivateQueueMember.queue_id == queue_id,
+                                                                     PrivateQueueMember.player_id == p.id)):
+                    db.add(PrivateQueueMember(queue_id=queue_id, player_id=p.id))
+                db.add(PrivateQueueEntry(queue_id=queue_id, player_id=p.id, joined_at=t + i * 1e-3))
             db.flush()
             try_pop(db)
             return _done(db)

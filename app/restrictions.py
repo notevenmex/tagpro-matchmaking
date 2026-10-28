@@ -19,8 +19,9 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from . import auth, play
-from .db import LeaverFlag, Lobby, LobbyPlayer, Player, QueueBan, QueueEntry, Rating, Strike, get_db
-from .rating import START_ELO
+from .db import (LeaverFlag, Lobby, LobbyPlayer, Player, PrivateQueueEntry, QueueBan, QueueEntry, Season, Strike,
+                 get_db)
+from .rating import START_ELO, get_rating  # noqa: F401 (START_ELO: tests use it)
 
 
 def _minutes(name: str, default: str) -> list[int]:
@@ -67,8 +68,7 @@ def ban(db: Session, player_id: int, seconds: float, kind: str, reason: str) -> 
         db.add(b)
     elif until >= b.until or b.until <= play.clock():
         b.until, b.kind, b.reason = until, kind, reason
-    db.execute(delete(QueueEntry).where(QueueEntry.player_id.in_(linked_ids(db, player_id))))
-    db.flush()
+    play.clear_queues(db, linked_ids(db, player_id))  # every queue, general and private
     return b
 
 
@@ -139,7 +139,8 @@ def check_can_queue(db: Session, p: Player):
         if other == p.id:
             continue
         name = db.scalar(select(Player.tagpro_name).where(Player.id == other))
-        if db.scalar(select(QueueEntry).where(QueueEntry.player_id == other)):
+        if db.scalar(select(QueueEntry.id).where(QueueEntry.player_id == other)) or \
+                db.scalar(select(PrivateQueueEntry.id).where(PrivateQueueEntry.player_id == other).limit(1)):
             raise HTTPException(409, f"Your other account {name} is already in the queue. Leave with it first.")
         if play._pregame_lobby(db, other) or queue_block(db, other):
             raise HTTPException(409, f"Your other account {name} is in a match that hasn't finished yet.")
@@ -157,7 +158,9 @@ def expire_queue(db: Session) -> bool:
     so players put back after someone else missed one keep their place without being expired."""
     cutoff = play.clock() - QUEUE_IDLE_MINUTES * 60
     gone = []
-    for e in db.scalars(select(QueueEntry).where(QueueEntry.joined_at < cutoff)).all():
+    waiting = db.scalars(select(QueueEntry).where(QueueEntry.joined_at < cutoff)).all() + \
+        db.scalars(select(PrivateQueueEntry).where(PrivateQueueEntry.joined_at < cutoff)).all()
+    for e in waiting:
         if _is_bot(db, e.player_id):
             continue
         last_accept = db.scalar(select(func.max(Lobby.created_at)).join(LobbyPlayer, LobbyPlayer.lobby_id == Lobby.id)
@@ -172,13 +175,9 @@ def expire_queue(db: Session) -> bool:
 
 # ---------- leavers ----------
 def _apply_leaver(db: Session, lobby: Lobby, player: Player):
-    ratings = db.scalars(select(Rating).where(Rating.player_id == player.id, Rating.season_id == lobby.season_id)).all()
-    if not ratings:  # hasn't finished a match yet this season
-        extra = {"position": player.position} if hasattr(Rating, "position") else {}  # per-position schema
-        ratings = [Rating(player_id=player.id, season_id=lobby.season_id, elo=START_ELO, games=0, wins=0, **extra)]
-        db.add(ratings[0])
-    for r in ratings:
-        r.elo = max(100, r.elo - LEAVER_ELO)
+    # the Elo of the queue the match came from: the general Elo, or that private queue's own
+    r = get_rating(db, player, db.get(Season, lobby.season_id), lobby.queue_id)
+    r.elo = max(100, r.elo - LEAVER_ELO)
     n, minutes = _strike(db, player.id, "leaver", LEAVER_COOLDOWNS, lobby.id)
     ban(db, player.id, minutes * 60, "leaver",
         f"You were reported for leaving match {lobby.id} and lost {LEAVER_ELO} Elo, "

@@ -1,5 +1,6 @@
 """FACEIT-style Elo. One rating per player per season; every player on a team moves by the
-same amount, based on the two teams' average Elo.
+same amount, based on the two teams' average Elo. Each private queue keeps its own separate Elo
+(QueueRating) under exactly the same rules; queue_id=None everywhere means the general queue.
 
 How it maps to FACEIT:
 - Everyone starts at 1000 Elo (FACEIT's default for new accounts).
@@ -31,7 +32,7 @@ Tune the constants here.
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .db import Match, MatchPlayer, Player, Rating, Season
+from .db import Match, MatchPlayer, Player, QueueRating, Rating, Season
 
 START_ELO = 1000
 K = 50                     # an even match is worth K / 2 = 25
@@ -93,11 +94,16 @@ def elo_change(own_avg: float, opp_avg: float, won: bool, placement: bool = Fals
     return d if won else -d
 
 
-def hot_streak(db: Session, player: Player, season: Season) -> float:
+def _same_queue(queue_id: int | None):
+    return Match.queue_id.is_(None) if queue_id is None else Match.queue_id == queue_id
+
+
+def hot_streak(db: Session, player: Player, season: Season, queue_id: int | None = None) -> float:
     """Win-gain boost for someone winning most of their recent games against higher-rated lobbies."""
     recent = db.execute(select(MatchPlayer.match_id, MatchPlayer.elo_before, MatchPlayer.team, Match.winner)
                         .join(Match, MatchPlayer.match_id == Match.id)
-                        .where(MatchPlayer.player_id == player.id, Match.season_id == season.id)
+                        .where(MatchPlayer.player_id == player.id, Match.season_id == season.id,
+                               _same_queue(queue_id))
                         .order_by(Match.id.desc()).limit(HOT_GAMES)).all()
     if not recent:
         return 0.0
@@ -122,11 +128,12 @@ def zero_sum(deltas: list[int]) -> list[int]:
             for d in deltas]
 
 
-def current_streak(db: Session, player: Player, season: Season) -> int:
+def current_streak(db: Session, player: Player, season: Season, queue_id: int | None = None) -> int:
     """Results in a row this season, most recent first: +3 is three wins in a row, -2 two losses."""
     recent = db.execute(select(MatchPlayer.team, Match.winner)
                         .join(Match, MatchPlayer.match_id == Match.id)
-                        .where(MatchPlayer.player_id == player.id, Match.season_id == season.id)
+                        .where(MatchPlayer.player_id == player.id, Match.season_id == season.id,
+                               _same_queue(queue_id))
                         .order_by(Match.id.desc())).all()
     run = 0
     for r in recent:
@@ -137,10 +144,18 @@ def current_streak(db: Session, player: Player, season: Season) -> int:
     return run
 
 
-def get_rating(db: Session, player: Player, season: Season) -> Rating:
-    r = db.scalar(select(Rating).where(Rating.player_id == player.id, Rating.season_id == season.id))
+def find_rating(db: Session, player_id: int, season_id: int, queue_id: int | None = None) -> Rating | QueueRating | None:
+    if queue_id is None:
+        return db.scalar(select(Rating).where(Rating.player_id == player_id, Rating.season_id == season_id))
+    return db.scalar(select(QueueRating).where(QueueRating.player_id == player_id, QueueRating.season_id == season_id,
+                                               QueueRating.queue_id == queue_id))
+
+
+def get_rating(db: Session, player: Player, season: Season, queue_id: int | None = None) -> Rating | QueueRating:
+    r = find_rating(db, player.id, season.id, queue_id)
     if not r:
-        r = Rating(player_id=player.id, season_id=season.id, elo=START_ELO, games=0, wins=0)
+        r = Rating(player_id=player.id, season_id=season.id, elo=START_ELO, games=0, wins=0) if queue_id is None else \
+            QueueRating(player_id=player.id, season_id=season.id, queue_id=queue_id, elo=START_ELO, games=0, wins=0)
         db.add(r)
         db.flush()
     return r
@@ -163,18 +178,19 @@ def rating_for(db: Session, player: Player, season: Season) -> dict:
 
 
 def record_match(db: Session, season: Season, *, winner: str, lineup: list[tuple[Player, str, str]],
-                 map_id: int | None = None, reported_by: str) -> tuple[Match, list[dict]]:
-    """Save a finished match and update everyone's Elo. Doesn't commit; the caller does.
+                 map_id: int | None = None, reported_by: str, queue_id: int | None = None) -> tuple[Match, list[dict]]:
+    """Save a finished match and update everyone's Elo (the private queue's Elo if queue_id is set).
+    Doesn't commit; the caller does.
 
     lineup: (player, team "red" | "blue", position "offense" | "defense") for each player.
     """
-    entries = [(p, team, pos, get_rating(db, p, season)) for p, team, pos in lineup]
+    entries = [(p, team, pos, get_rating(db, p, season, queue_id)) for p, team, pos in lineup]
     avg = {t: sum(r.elo for _, team, _, r in entries if team == t) / sum(1 for e in entries if e[1] == t)
            for t in ("red", "blue")}
     lobby_avg = sum(r.elo for *_, r in entries) / len(entries)
-    hot = {p.id: hot_streak(db, p, season) for p, *_ in entries}  # before this match is saved
-    streak = {p.id: current_streak(db, p, season) for p, *_ in entries}
-    m = Match(season_id=season.id, map_id=map_id, winner=winner, reported_by=reported_by)
+    hot = {p.id: hot_streak(db, p, season, queue_id) for p, *_ in entries}  # before this match is saved
+    streak = {p.id: current_streak(db, p, season, queue_id) for p, *_ in entries}
+    m = Match(season_id=season.id, map_id=map_id, winner=winner, reported_by=reported_by, queue_id=queue_id)
     db.add(m)
     db.flush()
     mults = [adjust(team == winner, r.elo, lobby_avg, hot[p.id], streak[p.id]) for p, team, _, r in entries]

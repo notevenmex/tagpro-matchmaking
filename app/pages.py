@@ -16,6 +16,7 @@ Log in with Discord, then register your TagPro name and the position you play: O
 - Hit **Find match**. When 8 players are queued, everyone gets 30 seconds to accept. Missing or declining the ready check locks you out of the queue: 5 minutes the first time, then 15 minutes, 1 hour and 24 hours if it keeps happening the same day.
 - Leaving a match or not showing up, once both captains report it, costs 25 Elo and a longer lockout, and the match is called off for everyone else.
 - If you wait 45 minutes without the queue filling, you're taken out of it. Just queue again.
+- Private queues: admins can add you to invite-only queues (like an S Queue). They show on the Home page, and you can wait in them and the general queue at the same time; when one pops you leave the others. Each private queue has its own Elo and Top 100, worked out the same way as the main one. All the lockouts above apply in every queue.
 - The two highest-rated players captain. The lower-rated captain picks first, in 1-2-2-1 order (red, blue, blue, red, red, blue). Aim for two offense and two defense.
 - Seven maps are drawn at random from the rotation, every map equally likely. Captains take turns banning, blue first, three bans each, until one is left. Then everyone votes on a server and the red captain shares the group link.
 - Your rating is your Elo. Everyone starts at 1000.
