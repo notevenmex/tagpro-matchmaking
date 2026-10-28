@@ -89,22 +89,23 @@ serve `www`, log in through the bare domain, or add the `www` callback and pick 
 Then open https://tagpropugs.com, log in with Discord, register, and check that you see the admin
 Report tab.
 
-## 6. Turn on the TagPro group bot (once that PR is merged)
+## 6. Turn on the Discord bot (once those PRs are merged)
 
-The auto group bot currently runs inside the web service, so it shares the one replica:
+There is no separate bot service. The bot (captain DMs, auto TagPro groups, team voice channels)
+runs as background tasks inside the web service and only uses Discord's REST API, so it shares the
+one replica. To turn it on, add variables to the web service:
 
-1. Add these variables to the web service: `INSTALL_BOT=1` (makes the build install Playwright and
-   Chromium), `AUTO_GROUP=1`, `DISCORD_BOT_TOKEN` (Developer Portal → your app → **Bot → Reset
-   Token**), `SITE_URL=https://tagpropugs.com`, and the `TAGPRO_*` settings from `.env.example`.
-2. Invite the bot to the community Discord server, since bots can only DM people they share a
-   server with.
-3. Redeploy. The image gets about 400 MB bigger, which is why it's off by default.
-
-If the bot later becomes its own process (for example a Discord gateway bot with slash commands),
-add it as a second service in the same project: **Create → GitHub Repo**, same repo, set
-`INSTALL_BOT=1` if it needs Chromium, set its **Custom Start Command** to the bot's entry point,
-and give it `DATABASE_URL=${{Postgres.DATABASE_URL}}` plus the bot variables. Remove `AUTO_GROUP`
-from the web service at that point so only one copy runs.
+1. `DISCORD_BOT_TOKEN` (Developer Portal → your app → **Bot → Reset Token**) and
+   `SITE_URL=https://tagpropugs.com`. Invite the bot to the community Discord server, since bots
+   can only DM people they share a server with.
+2. **Auto TagPro groups:** `AUTO_GROUP=1`, `INSTALL_BOT=1` (makes the build install Playwright and
+   Chromium, about 400 MB more, which is why it's off by default), and the `TAGPRO_*` settings
+   from `.env.example`.
+3. **Team voice channels:** `DISCORD_GUILD_ID`, `VOICE_CHANNELS=1`, `VOICE_CATEGORY_ID`, and
+   optionally `VOICE_LOBBY_CHANNEL_ID`, `VOICE_STAFF_ROLE_ID`, `VOICE_GRACE_SECONDS`,
+   `VOICE_MAX_HOURS`, `VOICE_DMS`. Voice needs nothing extra in the image. Server setup and what
+   each one does: `docs/discord-server.md`.
+4. Redeploy.
 
 ## Things to know
 
