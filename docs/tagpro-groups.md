@@ -24,9 +24,9 @@ userscripts do, instead of reimplementing the protocol.
 
 ## Settings the bot applies
 
-`COMPETITIVE_SETTINGS` in `app/tagpro_group.py`, taken from the league ("NALTP comp") defaults:
-classic mode, 10 minutes, no cap limit, no mercy rule, overtime on (no juke juice, no respawn
-increment in OT), 100% accel/top speed/bounce, default respawn timers (3s player, 10s boost,
+`COMPETITIVE_SETTINGS` in `app/tagpro_group.py`, taken from the league ("NALTP comp") defaults
+with PUG length and mercy: classic mode, 8 minutes, no cap limit, 6-cap mercy rule (the game ends
+when a team leads by 6), overtime on (no juke juice, no respawn increment in OT), 100% accel/top speed/bounce, default respawn timers (3s player, 10s boost,
 30s bomb, 60s powerup), buff delay on, no potato, `noScript` on, respawn warnings off, powerup
 indicators on, all powerups on, gravity off. Plus the drafted map, the voted server, and a private
 (not publicly listed) group with private games.

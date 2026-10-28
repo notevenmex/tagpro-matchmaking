@@ -32,16 +32,17 @@ LEADER_EVENT = os.getenv("TAGPRO_LEADER_EVENT", "leader")  # socket event that m
 CREATE_TIMEOUT_MS = int(os.getenv("TAGPRO_CREATE_TIMEOUT_MS", "20000"))
 CHROMIUM_PATH = os.getenv("TAGPRO_CHROMIUM_PATH") or None  # only if not using `playwright install chromium`
 
-# Standard competitive group settings (the NALTP/league defaults that tagpro-comp-stats applies).
+# Standard competitive group settings (the league defaults that tagpro-comp-stats applies), with PUG
+# game length and mercy rule.
 COMPETITIVE_SETTINGS: dict[str, str] = {
     "mode": "classic",
     "redTeamName": "Red",
     "blueTeamName": "Blue",
     "redTeamScore": "0",
     "blueTeamScore": "0",
-    "time": "10",                      # minutes
+    "time": "8",                       # minutes (PUG length)
     "caps": "0",                       # no cap limit
-    "mercyRule": "0",
+    "mercyRule": "6",                  # game ends when a team leads by 6 caps
     "overtime": "true",
     "overtimeRespawnIncrement": "0",
     "overtimeJukeJuice": "false",

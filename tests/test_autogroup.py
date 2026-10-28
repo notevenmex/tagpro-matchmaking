@@ -130,10 +130,12 @@ def test_cancelled_lobby_gets_no_dm():
 
 
 def test_settings_and_option_matching(monkeypatch):
+    s = group_settings()  # PUG defaults: 8 minutes, 6-cap mercy, no cap limit
+    assert (s["time"], s["mercyRule"], s["caps"], s["mode"]) == ("8", "6", "0", "classic")
     monkeypatch.setenv("TAGPRO_NOKISS_SETTING", "noKiss=true")
-    monkeypatch.setenv("TAGPRO_GROUP_SETTINGS", json.dumps({"time": 8}))
+    monkeypatch.setenv("TAGPRO_GROUP_SETTINGS", json.dumps({"time": 10}))
     s = group_settings()
-    assert s["noKiss"] == "true" and s["time"] == "8" and s["caps"] == "0" and s["mode"] == "classic"
+    assert s["noKiss"] == "true" and s["time"] == "10" and s["mercyRule"] == "6"
 
     maps = [("", "Random"), ("bomber", "Bombing Run"), ("Pilot", "Pilot"), ("Mapache Chief", "Mapache Chief")]
     assert pick_map(maps, "Bombing Run") == "bomber"
