@@ -107,6 +107,20 @@ one replica. To turn it on, add variables to the web service:
    each one does: `docs/discord-server.md`.
 4. Redeploy.
 
+## 7. Host MexBot (the music bot) next to the site
+
+MexBot is a separate, always-on bot with its own token. It doesn't talk to the site or the
+database. It lives in `mexbot/`, and the full steps are in [mexbot/README.md](../mexbot/README.md). In short:
+
+1. In the same Railway project, click **Create → GitHub Repo**, pick this repo, and name the service
+   `mexbot`.
+2. In that service's **Settings**, set **Root Directory** to `/mexbot` and the **Config-as-code**
+   path to `/mexbot/railway.json`. This matters: the root `railway.json` belongs to the website, and
+   its health check would make MexBot's deploys fail.
+3. Variables: `DISCORD_TOKEN` (MexBot's own token), plus optional `MEXBOT_GUILD_ID` (slash commands
+   show up instantly in that server) and `YOUTUBE_PROXY` (only if YouTube blocks Railway).
+4. Don't give it a domain. Keep it at one replica.
+
 ## Things to know
 
 - **Keep one replica.** The queue lock and the live-update WebSocket list are in memory, so a
