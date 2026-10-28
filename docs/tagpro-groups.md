@@ -62,14 +62,19 @@ same five region names (`SERVERS`), and the bot sets `regions` to the winning on
 
 The bot stays in the group as leader for the whole match (`app/group_host.py`):
 
+- The bot parks itself in the WAITING slot (team 4). On launch the page sends everyone else
+  to the game, and WAITING is the only slot that stays on the group page and keeps the socket.
 - Players pick their own team. When Red and Blue both have 4, the bot posts a 10-second
   countdown in group chat and launches the game (`groupPlay`). If someone leaves during the
   countdown, it cancels.
 - It launches by itself only once. To relaunch after a crash or an early end, or to start without
   full teams, anyone on Red or Blue types `!start` in group chat.
 - If the teams still aren't full after 3 minutes, both captains get one DM with the counts.
-- Anyone in the spectator or waiting slots who chats in the group is kicked from the group
-  (`kick`), once, with no other consequence. Players on Red or Blue are never kicked. Neither is
+- While a game is live, anyone in the spectator or waiting slots who chats in the group is kicked
+  from the group (`kick`), once, with no other consequence. Between games nobody is kicked. "Live"
+  means the group's `game` event carries a `gameId` and `gameServer`, falling back to 15 minutes
+  after launch. The bot sits on the group page, so this only covers group chat. Spectators typing
+  inside the game itself aren't seen yet. Players on Red or Blue are never kicked. Neither is
   anyone whose TagPro name matches a drafted player, as a safety net for players still in
   spectators. Group names can't be trusted otherwise: guests show as "Some Ball", and alts and
   renamed accounts don't match the registered name.
@@ -82,8 +87,10 @@ old behavior: the bot creates the group, makes the first person to join the lead
 On a 512 MB instance, set the cap to 1 or run the bot on a bigger instance.
 
 Tunables: `TAGPRO_COUNTDOWN_SECONDS`, `TAGPRO_MISSING_DM_SECONDS`, `TAGPRO_MAX_HOST_MINUTES`,
-`TAGPRO_START_COMMAND`. The event names and payloads (`TAGPRO_TEAM_NUMBERS` `{"red": 1, "blue": 2}`,
-`TAGPRO_KICK_EVENT`, `TAGPRO_LAUNCH_EVENT`) are still being confirmed against the live page.
+`TAGPRO_START_COMMAND`. Event names and payloads were read from the live global-group.js (client 3.2.1):
+`team` `{id, team}` with teams 0 playing, 1 red, 2 blue, 3 spectating and 4 waiting; `kick`
+and `leader` with a bare member id; `groupPlay` with no arguments; and received `chat`
+`{from: <name>, message, auth}`. They haven't been exercised in a real group yet.
 
 ## What could block automation
 

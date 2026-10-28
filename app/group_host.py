@@ -8,8 +8,11 @@ rules live here so they can be tested without a browser.
   Red or Blue types !start to relaunch (a crash, an early end).
 - If the teams still aren't full after MISSING_DM_SECONDS, both captains get one DM with the counts,
   and anyone on Red or Blue can type !start to launch with whoever is there.
-- Anyone in the spectator/waiting slots who chats in the group is kicked from the group, once. That's
-  the only consequence. Players on Red or Blue, drafted players (by TagPro name, as a safety net when
+- While a game is live, anyone in the spectator/waiting slots who chats is kicked from the group,
+  once. That's the only consequence. Between games, on the group page, nobody is kicked. A game
+  counts as live while the group's "game" event carries a game id, or, if the page hasn't said,
+  for GAME_MINUTES after launch. The bot sits on the group page, so this covers group chat;
+  spectators typing in the game itself aren't seen. Players on Red or Blue, drafted players (by TagPro name, as a safety net when
   one is sitting in spectators) and the bot itself are never kicked.
 - The bot leaves when the match is no longer live (reported, cancelled) or after MAX_HOST_MINUTES.
 
@@ -27,6 +30,10 @@ from typing import Awaitable, Callable, Protocol
 log = logging.getLogger("rankedpugs")
 
 TEAM_NUMBERS = json.loads(os.getenv("TAGPRO_TEAM_NUMBERS", "") or '{"red": 1, "blue": 2}')
+# Group teams on the live page: 0 playing (public), 1 red, 2 blue, 3 spectating, 4 waiting. On launch,
+# everyone except WAITING is sent to the game, so the bot parks itself in WAITING to keep the group page.
+WAITING_TEAM = 4
+TEAM_EVENT = os.getenv("TAGPRO_TEAM_EVENT", "team")
 KICK_EVENT = os.getenv("TAGPRO_KICK_EVENT", "kick")
 LAUNCH_EVENT = os.getenv("TAGPRO_LAUNCH_EVENT", "groupPlay")
 TEAM_SIZE = int(os.getenv("QUEUE_SIZE", "8")) // 2
@@ -34,6 +41,7 @@ START_COMMAND = os.getenv("TAGPRO_START_COMMAND", "!start")
 COUNTDOWN_SECONDS = int(os.getenv("TAGPRO_COUNTDOWN_SECONDS", "10"))
 MISSING_DM_SECONDS = int(os.getenv("TAGPRO_MISSING_DM_SECONDS", "180"))
 MAX_HOST_MINUTES = int(os.getenv("TAGPRO_MAX_HOST_MINUTES", "90"))
+GAME_MINUTES = int(os.getenv("TAGPRO_GAME_MINUTES", "15"))  # 8 minutes plus overtime and loading
 POLL_SECONDS = 2.0
 
 
@@ -46,7 +54,8 @@ class Seat:
 
 class GroupConn(Protocol):
     async def state(self) -> dict:
-        """{"you": id, "members": {id: {"id", "name", "team", ...}}, "chats": [new chat messages]}"""
+        """{"you": id, "members": {id: {"id", "name", "team", ...}}, "chats": [new chat messages],
+        "in_game": True/False if the page knows whether a game is running, else None}"""
     async def emit(self, event: str, payload=None): ...
     async def say(self, text: str): ...
 
@@ -82,6 +91,8 @@ class GroupHost:
         self.countdown_at: float | None = None   # when the pending launch fires
         self.warned_missing = False
         self.kicked: set[str] = set()
+        self.launched_at: float | None = None
+        self.parked = False
 
     async def run(self):
         while self.clock() - self.started < MAX_HOST_MINUTES * 60 and await self.is_live():
@@ -96,8 +107,12 @@ class GroupHost:
     async def step(self):
         st = await self.conn.state()
         you = str(st.get("you"))
+        me = (st.get("members") or {}).get(you)
+        if me is not None and str(me.get("team")) != str(WAITING_TEAM) and not self.parked:
+            self.parked = True
+            await self.conn.emit(TEAM_EVENT, {"id": me.get("id"), "team": WAITING_TEAM})
         members = {str(k): m for k, m in (st.get("members") or {}).items() if str(k) != you}
-        force = await self._read_chat(st.get("chats") or [], members, you)
+        force = await self._read_chat(st.get("chats") or [], members, you, self._game_live(st))
         counts = {team: 0 for team in TEAM_NUMBERS}
         for m in members.values():
             team = self._team_of(m)
@@ -122,7 +137,12 @@ class GroupHost:
         elif self.countdown_at is not None and self.clock() >= self.countdown_at:
             await self._launch("both teams are full")
 
-    async def _read_chat(self, chats: list, members: dict, you: str) -> bool:
+    def _game_live(self, st: dict) -> bool:
+        if st.get("in_game") is not None:
+            return bool(st["in_game"])
+        return self.launched_at is not None and self.clock() - self.launched_at < GAME_MINUTES * 60
+
+    async def _read_chat(self, chats: list, members: dict, you: str, game_live: bool) -> bool:
         force = False
         for chat in chats:
             if not isinstance(chat, dict):
@@ -132,7 +152,7 @@ class GroupHost:
                 continue  # system messages, the bot itself, or someone who already left
             if self._team_of(sender):
                 force = force or chat_text(chat).lower() == START_COMMAND
-            elif _name(sender) not in self.drafted:
+            elif game_live and _name(sender) not in self.drafted:
                 sid = str(sender.get("id"))
                 if sid not in self.kicked:
                     self.kicked.add(sid)
@@ -144,5 +164,6 @@ class GroupHost:
     async def _launch(self, why: str):
         self.countdown_at = None
         self.launches += 1
+        self.launched_at = self.clock()
         log.info("lobby %s: launching game %s (%s)", self.lobby_id, self.launches, why)
         await self.conn.emit(LAUNCH_EVENT)

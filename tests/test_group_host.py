@@ -3,20 +3,21 @@ import asyncio
 from app import group_host
 from app.group_host import GroupHost, Seat, chat_sender
 
-RED, BLUE, SPEC = 1, 2, 3
+RED, BLUE, SPEC, WAITING = 1, 2, 3, 4
 
 
 class FakeConn:
     def __init__(self):
-        self.members = {"bot": {"id": "bot", "name": "Some Ball", "team": SPEC}}
+        self.members = {"bot": {"id": "bot", "name": "Some Ball", "team": WAITING}}
         self.chats, self.emits, self.said = [], [], []
+        self.in_game = None
 
     def join(self, mid, name, team):
         self.members[mid] = {"id": mid, "name": name, "team": team}
 
     async def state(self):
         chats, self.chats = self.chats, []
-        return {"you": "bot", "members": dict(self.members), "chats": chats}
+        return {"you": "bot", "members": dict(self.members), "chats": chats, "in_game": self.in_game}
 
     async def emit(self, event, payload=None):
         self.emits.append((event, payload))
@@ -91,12 +92,24 @@ def test_kicks_chatting_spectators_once_but_never_players():
     conn, t, missing = FakeConn(), [0.0], []
     host = make_host(conn, t, missing)
     conn.join("s1", "Lurker", SPEC)
-    conn.join("s2", "R1", SPEC)        # a drafted player who hasn't picked a team yet
+    conn.chats.append({"from": "s1", "message": "on the group page"})
+    asyncio.run(host.step())
+    assert conn.emits == []  # no game live: nobody is kicked
+    conn.chats.append({"from": "r0", "message": "!start"})
     conn.join("r0", "R0", RED)
+    asyncio.run(host.step())
+    conn.emits.clear()
+    conn.join("s2", "R1", SPEC)        # a drafted player who hasn't picked a team yet
     conn.chats += [{"from": "s1", "message": "gl"}, {"from": "s1", "message": "hi again"},
                    {"from": "Lurker", "message": "by name"}, {"from": "s2", "message": "which team?"},
                    {"from": "r0", "message": "hi"}, {"from": "bot", "message": "me"},
                    {"message": "system notice"}]
+    asyncio.run(host.step())
+    assert conn.emits == [(group_host.KICK_EVENT, "s1")]
+
+    conn.join("s3", "Late", SPEC)
+    t[0] += group_host.GAME_MINUTES * 60  # the game is over: back to the group page
+    conn.chats.append({"from": "s3", "message": "gg"})
     asyncio.run(host.step())
     assert conn.emits == [(group_host.KICK_EVENT, "s1")]
 
@@ -106,3 +119,22 @@ def test_chat_sender_by_id_or_name():
     assert chat_sender({"from": 7}, members)["name"] == "Neon"
     assert chat_sender({"from": "neon"}, members)["id"] == 7
     assert chat_sender({"from": "nobody"}, members) is None
+
+
+def test_bot_parks_in_waiting_and_follows_the_game_event():
+    conn, t, missing = FakeConn(), [0.0], []
+    conn.members["bot"]["team"] = SPEC
+    host = make_host(conn, t, missing)
+    asyncio.run(host.step())
+    assert conn.emits == [("team", {"id": "bot", "team": WAITING})]
+    conn.emits.clear()
+
+    conn.join("s1", "Lurker", SPEC)
+    conn.in_game = False  # TagPro says no game is running
+    conn.chats.append({"from": "Lurker", "message": "hi"})
+    asyncio.run(host.step())
+    assert conn.emits == []
+    conn.in_game = True
+    conn.chats.append({"from": "Lurker", "message": "hi again"})
+    asyncio.run(host.step())
+    assert conn.emits == [(group_host.KICK_EVENT, "s1")]

@@ -141,7 +141,7 @@ class GroupError(Exception):
 # Runs inside the page before its scripts: hooks the group socket as soon as it exists, so we see
 # every member event (including our own id) and can tell when a captain has joined.
 _INIT_SCRIPT = """
-window.__rp = {you: null, members: {}, settings: {}, chats: []};
+window.__rp = {you: null, members: {}, settings: {}, chats: [], inGame: null};
 const __rpIv = setInterval(() => {
   const s = window.tagpro && tagpro.group && tagpro.group.socket;
   if (!s) return;
@@ -151,6 +151,7 @@ const __rpIv = setInterval(() => {
   s.on('removed', m => { delete __rp.members[m.id]; });
   s.on('setting', st => { __rp.settings[st.name] = st.value; });
   s.on('chat', c => { __rp.chats.push(c); });
+  s.on('game', g => { __rp.inGame = !!(g && g.gameId && g.gameServer); });
 }, 5);
 """
 
@@ -316,7 +317,8 @@ class PageGroupConn:
 
     async def state(self) -> dict:
         return await self.page.evaluate(
-            "() => { const c = __rp.chats; __rp.chats = []; return {you: __rp.you, members: __rp.members, chats: c}; }")
+            "() => { const c = __rp.chats; __rp.chats = [];"
+            " return {you: __rp.you, members: __rp.members, chats: c, in_game: __rp.inGame}; }")
 
     async def emit(self, event: str, payload=None):
         await self.page.evaluate("([ev, p, has]) => has ? tagpro.group.socket.emit(ev, p) : tagpro.group.socket.emit(ev)",
