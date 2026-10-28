@@ -41,6 +41,16 @@ Add `me` to `ADMIN_DISCORD_IDS` to see the Report tab.
   Those players have no Discord linked. To give one to its real owner, set `discord_id` on that
   row after they log in once.
 - **Matches** are entered by admins on the Report tab for now.
+- **Matchmaking** (`app/play.py`): a queue of 8 pops a ready check (30 s; anyone who misses or
+  declines is locked out for 5 min and everyone else goes back in the queue with their place).
+  The two highest-rated players captain; the lower-rated one is red and picks first, in
+  1-2-2-1 order. Five maps are drawn by vote chance and captains ban in turn, blue first, down to
+  one. Then all 8 vote on a server and the red captain pastes the TagPro group link. Timeouts
+  auto-pick the best player left and auto-ban a random map. The site shows each step as a pop-up
+  and gets live updates over the `/ws` WebSocket. Run a single worker: the lock and socket list
+  live in memory. Timers and sizes can be changed with the env vars in `.env.example`.
+- **Testing a match alone:** with `DEV_LOGIN=1`, join the queue and press **Fill with bots**.
+  Archived players fill the other 7 spots and accept, pick and ban on their own.
 
 ## API
 
@@ -51,6 +61,27 @@ Add `me` to `ADMIN_DISCORD_IDS` to see the Report tab.
 | POST | `/api/register` | logged in, not yet registered |
 | PUT | `/api/maps/{id}/vote` `{score: -5..10 or null}` | registered players |
 | POST | `/api/matches` | admins |
+| GET | `/api/play` (queue, your lobby), `/api/lobbies/{id}` | anyone |
+| POST / DELETE | `/api/queue` (join / leave) | registered players |
+| POST | `/api/lobbies/{id}/accept`, `/decline`, `/pick {name}`, `/ban {map_id}`, `/server {server}`, `/group {link}` | players in that lobby |
+| POST | `/api/lobbies/{id}/cancel` | admins |
+| WS | `/ws` sends `{"type": "update"}` whenever matchmaking changes | anyone |
+
+## Auto group bot
+
+Once a match is drafted (map and server chosen), a bot can create the TagPro group and DM both
+captains the link, so nobody has to set it up by hand:
+
+1. `pip install -r requirements-bot.txt && playwright install chromium`
+2. Create a bot in the Discord Developer Portal (the same app as login works), invite it to the
+   community server, and put its token in `DISCORD_BOT_TOKEN`. Bots can only DM people who share a
+   server with them.
+3. Set `AUTO_GROUP=1`.
+
+The group is private, with standard competitive settings, Kissing Flag Carriers off (from the experimental settings), the drafted map and the voted server. The
+bot waits in the group until a captain joins, makes them leader, and leaves. If creation fails a
+few times, the captains get a DM asking the red captain to make the group and paste the link on the
+match page. Research notes, settings and known risks: [docs/tagpro-groups.md](docs/tagpro-groups.md).
 
 ## Tests
 

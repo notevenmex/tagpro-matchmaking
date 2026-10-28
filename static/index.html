@@ -166,6 +166,140 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .recent li{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding:4px 0}
 .empty{text-align:center;color:var(--muted);padding:40px 0}
 .votes .hint{color:var(--muted)}
+/* ---------- matchmaking: queue dock, toast and pop-up dialogs ---------- */
+:root{--ok:#22c55e;--ok-ink:#052e14;--team-red:#ef4444;--team-blue:#3b82f6;
+  --pop-shadow:0 30px 80px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.18);--ease:cubic-bezier(.2,.9,.3,1.15)}
+main{padding-bottom:130px}
+.dock{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:20;
+  display:flex;align-items:center;gap:14px;padding:8px 8px 8px 18px;max-width:calc(100vw - 32px);
+  background:color-mix(in srgb,var(--panel) 86%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  border:1px solid var(--line);border-radius:999px;box-shadow:var(--pop-shadow);animation:rise .35s var(--ease)}
+.dock[hidden]{display:none}
+.dock .label{font-family:var(--display);font-weight:700;font-size:20px;line-height:1.05;white-space:nowrap}
+.dock .sub{font-size:12px;color:var(--muted);white-space:nowrap}
+.dock .acts{display:flex;gap:6px}
+@media (max-width:560px){.dock{left:16px;right:16px;transform:none;border-radius:20px;flex-wrap:wrap;padding:10px 10px 10px 14px}.dock .pips{display:none}.dock .acts{margin-left:auto}}
+.pips{display:flex;gap:5px}
+.pips i{width:10px;height:10px;border-radius:50%;background:var(--panel-2);border:1px solid var(--line);transition:background .2s,box-shadow .2s}
+.pips i.on{background:var(--red);border-color:var(--red);box-shadow:0 0 10px var(--red-glow)}
+.pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;font:inherit;font-weight:600;font-size:14px;border:0;border-radius:999px;
+  padding:9px 18px;cursor:pointer;background:var(--panel-2);color:var(--text);white-space:nowrap;text-decoration:none;transition:transform .12s,filter .12s,background .12s}
+.pill:hover:not(:disabled){filter:brightness(1.1)}
+.pill:active:not(:disabled){transform:scale(.97)}
+.pill:disabled{opacity:.55;cursor:default}
+.pill.primary{background:var(--red);color:#fff;box-shadow:0 6px 18px var(--red-glow)}
+.pill.ok{background:var(--ok);color:var(--ok-ink);box-shadow:0 6px 20px rgba(34,197,94,.3)}
+.pill.ghost{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.pill.big{font-size:17px;padding:13px 28px;min-width:180px}
+.live-dot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--ok);animation:ping 1.4s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}100%{box-shadow:0 0 0 12px rgba(34,197,94,0)}}
+@keyframes rise{from{opacity:0;translate:0 14px}to{opacity:1;translate:0 0}}
+
+.toast{position:fixed;top:calc(16px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:30;max-width:min(520px,calc(100vw - 32px));
+  background:var(--panel);color:var(--text);border:1px solid var(--line);border-left:4px solid var(--red);border-radius:12px;padding:12px 16px;
+  box-shadow:var(--pop-shadow);font-size:14px;animation:rise .3s var(--ease)}
+.toast[hidden]{display:none}
+
+dialog.pop{padding:0;width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 32px);border:1px solid var(--line);border-radius:20px;
+  background:var(--panel);color:var(--text);box-shadow:var(--pop-shadow);overflow:hidden;display:flex;flex-direction:column}
+dialog.pop:not([open]){display:none}
+dialog.pop[open]{animation:pop-in .28s var(--ease)}
+dialog.pop.md{width:min(760px,calc(100vw - 32px))}
+dialog.pop.lg{width:min(1040px,calc(100vw - 32px))}
+dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+@keyframes pop-in{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+.pop-head{display:flex;align-items:flex-start;gap:12px;padding:20px 22px 14px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--red) 10%,transparent),transparent)}
+.pop-head .eyebrow{margin:0;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.pop-head h2{margin:2px 0 0;font-family:var(--display);font-weight:700;font-size:30px;line-height:1}
+.pop-head .sub{margin:6px 0 0;font-size:14px;color:var(--muted)}
+.pop-head .sub.go{color:var(--text);font-weight:600}
+.pop-head .side{margin-left:auto;display:flex;align-items:center;gap:8px}
+.secs{font-family:var(--display);font-weight:700;font-size:26px;font-variant-numeric:tabular-nums;min-width:2ch;text-align:right}
+.secs.low{color:var(--red)}
+.x{flex:none;width:34px;height:34px;border-radius:50%;border:0;background:var(--panel-2);color:var(--muted);font-size:20px;line-height:1;cursor:pointer}
+.x:hover{color:var(--text)}
+.timer{height:4px;background:var(--panel-2);flex:none}
+.timer i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--red),#ff8a1f);transition:width .25s linear}
+.pop-body{padding:18px 22px;overflow:auto}
+.pop-foot{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;padding:4px 22px 22px}
+.muted{color:var(--muted)}
+
+/* ready check */
+.ready{text-align:center}
+.ring{position:relative;width:148px;height:148px;margin:6px auto 16px}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:7}
+.ring .track{stroke:var(--panel-2)}
+.ring .prog{stroke:var(--ok);stroke-linecap:round;stroke-dasharray:100;transition:stroke-dashoffset .25s linear,stroke .3s}
+.ring.low .prog{stroke:var(--red)}
+.ring b{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--display);font-size:52px;font-weight:700;font-variant-numeric:tabular-nums}
+.accepts{display:flex;justify-content:center;gap:8px;margin-bottom:8px}
+.accepts i{width:26px;height:26px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);transition:background .25s,transform .25s var(--ease)}
+.accepts i.on{background:var(--ok);border-color:var(--ok);transform:scale(1.08)}
+
+/* draft */
+.order{display:flex;justify-content:center;gap:6px;margin:0 0 16px;padding:0;list-style:none}
+.order li{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:13px;font-weight:600;color:#fff;opacity:.35}
+.order li.red{background:var(--team-red)}.order li.blue{background:var(--team-blue)}
+.order li.done{opacity:.8}
+.order li.now{opacity:1;transform:scale(1.15);box-shadow:0 0 0 3px var(--panel),0 0 0 5px var(--oc)}
+.order li.red{--oc:var(--team-red)}.order li.blue{--oc:var(--team-blue)}
+.draft{display:grid;grid-template-columns:1fr 1.25fr 1fr;gap:14px;align-items:start}
+@media (max-width:820px){.draft{grid-template-columns:1fr 1fr}.draft .pool{grid-column:1/-1;order:-1}}
+.draft h3,.teams2 h3{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 8px;font-family:var(--display);font-size:20px}
+.draft h3 small,.teams2 h3 small{font-family:var(--body);font-size:12px;font-weight:500;color:var(--muted)}
+.team{border-radius:14px;padding:12px;background:var(--panel-2);border-top:3px solid var(--tc)}
+.team.red{--tc:var(--team-red)}.team.blue{--tc:var(--team-blue)}
+.team h3{color:var(--tc)}
+.chip{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px;background:var(--panel);margin-top:6px;min-height:46px;animation:rise .3s var(--ease)}
+.chip .name{font-size:15px}
+.chip.empty{justify-content:center;background:transparent;border:1px dashed var(--line);color:var(--muted);font-size:12px;animation:none}
+.cap{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--banner-hi);background:#1d1d1f;border-radius:6px;padding:2px 6px}
+.pool{display:grid;gap:8px;align-content:start}
+.pool h3{margin-bottom:0}
+.pick{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:12px;border:1px solid var(--line);background:var(--panel);
+  color:inherit;font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,transform .15s var(--ease),box-shadow .15s}
+.pick:disabled{cursor:default}
+.pick:not(:disabled):hover{border-color:var(--red);transform:translateY(-2px);box-shadow:0 8px 22px var(--red-glow)}
+.pick .go{margin-left:auto;font-size:12px;font-weight:700;color:var(--red);opacity:0;transition:opacity .15s}
+.pick:not(:disabled):hover .go,.pick:not(:disabled):focus-visible .go{opacity:1}
+.pick .tags{color:var(--muted);font-family:var(--body);font-weight:500;font-size:12px}
+
+/* veto */
+.veto{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.vmap{position:relative;border-radius:14px;background:var(--panel-2);padding:8px;display:flex;flex-direction:column;gap:8px;transition:opacity .3s,filter .3s,transform .2s var(--ease)}
+.vmap svg{display:block;width:100%;height:auto;border-radius:8px;background:#000}
+.vmap .vrow{display:flex;align-items:baseline;justify-content:space-between;gap:6px;padding:0 2px}
+.vmap .vrow small{color:var(--muted)}
+.vmap.banned{opacity:.45;filter:grayscale(1)}
+.vmap .stamp{text-align:center;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px;border-radius:999px;color:#fff}
+.vmap.red .stamp{background:var(--team-red)}.vmap.blue .stamp{background:var(--team-blue)}
+.vmap .pill{width:100%}
+.vmap.can:hover{transform:translateY(-3px)}
+.pill.ban{background:transparent;color:var(--red);box-shadow:inset 0 0 0 1.5px var(--red)}
+.pill.ban:not(:disabled):hover{background:var(--red);color:#fff}
+
+/* server vote and match */
+.servers{display:grid;gap:8px}
+.server{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:12px;border:1px solid var(--line);
+  background:var(--panel);color:inherit;font:inherit;cursor:pointer;text-align:left}
+.server.mine{border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok)}
+.server b{font-variant-numeric:tabular-nums;color:var(--muted)}
+.hero{position:relative;border-radius:14px;overflow:hidden;margin-bottom:14px}
+.hero svg{display:block;width:100%;height:auto;max-height:200px;object-fit:cover;background:#000}
+.hero div{position:absolute;left:0;right:0;bottom:0;padding:24px 14px 10px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff}
+.hero b{font-family:var(--display);font-size:28px;display:block;line-height:1}
+.hero span{font-size:13px;opacity:.85}
+.teams2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.teams2{grid-template-columns:1fr}}
+.group{margin-top:16px;padding:14px;border-radius:14px;background:var(--panel-2);display:grid;gap:10px;text-align:center}
+.group form{display:flex;gap:8px}
+.group input{flex:1;min-width:0;font:inherit;font-size:14px;background:var(--input);color:var(--text);border:0;border-radius:999px;padding:9px 14px}
+@media (prefers-reduced-motion:reduce){
+  .dock,.toast,dialog.pop[open],.chip,.live-dot{animation:none}
+  .pill,.pick,.vmap,.accepts i,.timer i,.ring .prog{transition:none}
+}
 </style>
 </head>
 <body>
@@ -216,7 +350,9 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
       <p>Log in with Discord, then register your TagPro name and the position you play most.</p>
       <h2>Teams and ratings</h2>
       <ul>
-        <li>Teams are balanced by rating: two offense and two defense per side.</li>
+        <li>Hit <b>Find match</b>. When 8 players are queued, everyone gets 30 seconds to accept. Missing or declining the ready check locks you out of the queue for 5 minutes.</li>
+        <li>The two highest-rated players captain. The lower-rated captain picks first, in 1-2-2-1 order (red, blue, blue, red, red, blue). Aim for two offense and two defense.</li>
+        <li>Five maps are drawn by vote chance. Captains take turns banning, blue first, until one is left. Then everyone votes on a server and the red captain shares the group link.</li>
         <li>A win raises your rating and a loss lowers it. Beating a stronger team moves you further.</li>
         <li>Your rating appears on the Top 100 once you’ve played 10 games this season.</li>
       </ul>
@@ -259,10 +395,14 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
   <form method="dialog"><button class="btn">Close</button></form>
 </dialog>
 
+<div class="dock" id="dock" role="region" aria-label="Ranked queue" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<dialog class="pop" id="lobby" aria-labelledby="lobby-title"></dialog>
+
 <script>
 /* ---------- helpers ---------- */
 const $ = (s,el=document)=>el.querySelector(s);
-const h = (tag,attrs={},...kids)=>{const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs)){if(v==null||v===false)continue;if(k==="class")e.className=v;else if(k==="style")e.style.cssText=v;else if(k.startsWith("on"))e.addEventListener(k.slice(2),v);else e.setAttribute(k,v===true?"":v)}for(const c of kids.flat())if(c!=null)e.append(c instanceof Node?c:document.createTextNode(c));return e};
+const h = (tag,attrs={},...kids)=>{const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs)){if(v==null||v===false)continue;if(k==="class")e.className=v;else if(k==="style")e.style.cssText=v;else if(k.startsWith("on"))e.addEventListener(k.slice(2),v);else e.setAttribute(k,v===true?"":v)}for(const c of kids.flat())if(c!=null&&c!==false)e.append(c instanceof Node?c:document.createTextNode(c));return e};
 const tier = r => r>=40?"#ff3344":r>=30?"#f5c400":r>=20?"#9b5cff":r>=15?"#ff8a1f":r>=10?"#3b8bff":"#22b8c8";
 const minus = n => String(n).replace("-","−");
 async function api(path, opts={}){
@@ -323,8 +463,8 @@ function renderAuth(){
     h("button",{class:"btn",onclick:logout},"Log out")));
 }
 function logoutCard(){return h("div",{class:"card"},h("h2",{},"Wrong account?"),h("button",{class:"btn",onclick:logout},"Log out"))}
-async function logout(){ try{await api("/auth/logout",{method:"POST"})}catch{} ME={logged_in:false}; renderAuth(); renderMaps(); $("#nav-report").hidden=true; if(current==="report")go("home"); }
-async function refreshMe(){ ME=await api("/api/me"); $("#nav-report").hidden=!ME.is_admin; renderAuth(); }
+async function logout(){ try{await api("/auth/logout",{method:"POST"})}catch{} ME={logged_in:false}; renderAuth(); renderMaps(); refreshPlay(); $("#nav-report").hidden=true; if(current==="report")go("home"); }
+async function refreshMe(){ ME=await api("/api/me"); $("#nav-report").hidden=!ME.is_admin; renderAuth(); if(PLAY){ renderDock(); refreshPlay(); } }
 
 /* ---------- leaderboard ---------- */
 function renderBoard(){
@@ -369,8 +509,9 @@ $("#search").addEventListener("input",e=>{
 
 /* ---------- maps ---------- */
 function seeded(str){let s=0;for(const ch of str)s=(s*31+ch.charCodeAt(0))>>>0;return()=>((s=(s*1664525+1013904223)>>>0)/4294967296)}
+let svgN=0; // pattern ids must be unique: a copy inside a hidden view would blank out the others
 function mapSVG(name){
-  const rnd=seeded(name), W=40, H=22, id="g"+name.replace(/\W/g,"");
+  const rnd=seeded(name), W=40, H=22, id="g"+name.replace(/\W/g,"")+(++svgN);
   const blobs=Array.from({length:4+Math.floor(rnd()*3)},()=>({x:4+rnd()*15,y:3+rnd()*16,rx:4+rnd()*6,ry:3+rnd()*5}));
   const inside=(x,y)=>blobs.some(b=>((x-b.x)/b.rx)**2+((y-b.y)/b.ry)**2<=1);
   const set=new Set();
@@ -445,6 +586,223 @@ $("#report-form").addEventListener("submit",async e=>{
   }catch(err){ out.replaceChildren(h("p",{class:"err"},err.message)); }
 });
 
+/* ---------- matchmaking: queue, ready check, draft, map veto ---------- */
+let PLAY=null, SKEW=0, LAST_KEY=null, GROUP_DRAFT="", playTimer=null;
+const LIVE=["ready_check","drafting","map_veto","server_vote","awaiting_group","in_progress"];
+const STEP={ready_check:"Match found",drafting:"Captains draft",map_veto:"Map veto",server_vote:"Server vote",awaiting_group:"Match ready",in_progress:"Match live"};
+const nowS=()=>Date.now()/1000+SKEW;
+const teamName=t=>t==="red"?"Red":"Blue";
+const dot=p=>h("i",{class:"dot"+(p.position==="defense"?" d":""),title:posLabel(p.position)});
+const captain=(L,t)=>L.players.find(p=>p.is_captain&&p.team===t);
+const lobbyKey=L=>L.id+":"+L.status;
+const dismissed=new Set((()=>{try{return JSON.parse(localStorage.getItem("rp-dismissed")||"[]")}catch{return[]}})());
+function saveDismissed(){try{localStorage.setItem("rp-dismissed",JSON.stringify([...dismissed].slice(-30)))}catch{}}
+
+async function refreshPlay(){
+  try{ PLAY=await api("/api/play"); SKEW=PLAY.now-Date.now()/1000; renderDock(); renderLobby(); }catch{}
+}
+function schedulePlay(){ clearTimeout(playTimer); playTimer=setTimeout(refreshPlay,60); }
+let wsDelay=1000;
+function connectLive(){
+  let ws; try{ ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws"); }catch{ return; }
+  ws.onopen=()=>{wsDelay=1000};
+  ws.onmessage=schedulePlay;
+  ws.onclose=()=>{ setTimeout(connectLive,wsDelay); wsDelay=Math.min(wsDelay*2,15000); };
+}
+setInterval(()=>{ if(document.visibilityState==="visible") refreshPlay(); },15000); // safety net if the socket drops quietly
+
+let toastTimer=null;
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>{t.hidden=true},6500); }
+async function playAct(path,method="POST",body){
+  try{ await api(path,{method,body:body?JSON.stringify(body):undefined}); await refreshPlay(); }
+  catch(err){ toast(err.message); }
+}
+const act=(L,verb,body)=>playAct(`/api/lobbies/${L.id}/${verb}`,"POST",body||{});
+
+function matchFoundAlert(){
+  try{
+    const a=new (window.AudioContext||window.webkitAudioContext)();
+    [[660,0],[880,.16],[1100,.32]].forEach(([f,t])=>{const o=a.createOscillator(),g=a.createGain();o.type="triangle";o.frequency.value=f;
+      g.gain.setValueAtTime(.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(.25,a.currentTime+t+.02);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+t+.15);
+      o.connect(g).connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+.18);});
+  }catch{}
+  if(document.hidden){ const was=document.title; let n=0; const iv=setInterval(()=>{document.title=n++%2?was:"▶ Match found!"; if(!document.hidden||n>40){clearInterval(iv);document.title=was}},700); }
+}
+
+/* countdowns: any element with data-deadline is refreshed here */
+const fmt=s=>{s=Math.max(0,Math.ceil(s));return s>=60?`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`:String(s)};
+setInterval(()=>{
+  const t=nowS();
+  document.querySelectorAll("[data-deadline]").forEach(el=>{
+    const left=Math.max(0,+el.dataset.deadline-t), total=+el.dataset.total||1, low=left<=5;
+    if(el.dataset.kind==="bar") el.style.width=(100*left/total)+"%";
+    else if(el.dataset.kind==="ring"){ el.style.strokeDashoffset=String(100-100*left/total); el.closest(".ring").classList.toggle("low",low); }
+    else { el.textContent=fmt(left); el.classList.toggle("low",low&&el.classList.contains("secs")); }
+  });
+  document.querySelectorAll("[data-since]").forEach(el=>{el.textContent=fmt(t-+el.dataset.since)});
+},250);
+
+/* ---------- queue dock ---------- */
+function renderDock(){
+  const d=$("#dock"), P=PLAY; if(!P){d.hidden=true;return}
+  d.replaceChildren(); d.hidden=false;
+  const L=P.lobby, n=P.queue.length;
+  const pips=h("div",{class:"pips","aria-hidden":"true"},...Array.from({length:P.size},(_,i)=>h("i",{class:i<n?"on":null})));
+  const info=(label,...sub)=>h("div",{},h("div",{class:"label"},label),h("div",{class:"sub"},...sub));
+  const acts=h("div",{class:"acts"});
+  if(L && LIVE.includes(L.status) && L.status!=="in_progress"){
+    d.append(h("span",{class:"live-dot"}),info(STEP[L.status],`Match #${L.id}`),h("div",{class:"acts"},h("button",{class:"pill primary",onclick:openLobby},"Open")));
+    return;
+  }
+  if(L && L.status==="in_progress") acts.append(h("button",{class:"pill ghost",onclick:openLobby},`Match #${L.id}`));
+  if(!ME.logged_in){
+    d.append(info("Ranked queue",`${n}/${P.size} searching`),pips,acts); acts.append(h("a",{class:"pill primary",href:"/auth/login"},"Log in to play")); return;
+  }
+  if(!ME.player){
+    d.append(info("Ranked queue",`${n}/${P.size} searching`),pips,acts); acts.append(h("button",{class:"pill primary",onclick:()=>go("home")},"Register to play")); return;
+  }
+  if(P.banned_until && P.banned_until>nowS()){
+    d.append(info("Queue locked","Missed ready check · ",h("span",{"data-deadline":P.banned_until},fmt(P.banned_until-nowS()))),acts);
+    acts.append(h("button",{class:"pill",disabled:true},"Find match")); return;
+  }
+  if(P.in_queue){
+    d.append(h("span",{class:"live-dot"}),info("Searching…",`${n}/${P.size} in queue · `,h("span",{"data-since":P.queued_at},fmt(nowS()-P.queued_at))),pips,acts);
+    if(P.dev) acts.append(h("button",{class:"pill ghost",title:"Local testing only",onclick:()=>playAct("/api/dev/fill-queue")},"Fill with bots"));
+    acts.append(h("button",{class:"pill",onclick:()=>playAct("/api/queue","DELETE")},"Leave"));
+    return;
+  }
+  d.append(info("Ranked queue",`${n}/${P.size} in queue`),pips,acts);
+  acts.append(h("button",{class:"pill primary",onclick:()=>playAct("/api/queue")},"Find match"));
+}
+
+/* ---------- lobby pop-up ---------- */
+function openLobby(){ const L=PLAY&&PLAY.lobby; if(!L)return; dismissed.delete(lobbyKey(L)); saveDismissed(); renderLobby(); }
+function dismissLobby(){
+  const L=PLAY&&PLAY.lobby, dlg=$("#lobby");
+  if(L){ dismissed.add(lobbyKey(L)); saveDismissed(); }
+  if(dlg.open) dlg.close();
+}
+$("#lobby").addEventListener("cancel",e=>{ e.preventDefault(); if(PLAY?.lobby?.status!=="ready_check") dismissLobby(); });
+
+function renderLobby(){
+  const L=PLAY&&PLAY.lobby, dlg=$("#lobby");
+  if(!L){ if(dlg.open)dlg.close(); LAST_KEY=null; return; }
+  const key=lobbyKey(L), fresh=key!==LAST_KEY; LAST_KEY=key;
+  if(L.status==="cancelled"){ if(fresh) toast(L.note||"The match was cancelled."); if(dlg.open)dlg.close(); renderDock(); return; }
+  if(fresh && L.status==="ready_check" && !L.me?.accepted) matchFoundAlert();
+  if(dismissed.has(key) && L.status!=="ready_check"){ if(dlg.open)dlg.close(); return; }
+  const view={ready_check:viewReady,drafting:viewDraft,map_veto:viewVeto,server_vote:viewServer,awaiting_group:viewMatch,in_progress:viewMatch}[L.status];
+  if(!view) return;
+  const keepScroll=$(".pop-body",dlg)?.scrollTop||0;
+  dlg.className="pop "+({ready_check:"",server_vote:"",drafting:"lg",map_veto:"md",awaiting_group:"md",in_progress:"md"})[L.status];
+  dlg.replaceChildren(...view(L).filter(Boolean));
+  if(!fresh){ const b=$(".pop-body",dlg); if(b) b.scrollTop=keepScroll; }
+  if(!dlg.open) dlg.showModal();
+}
+
+function popHead(L,title,sub,{closable=true,timer=false,go=false}={}){
+  return h("div",{class:"pop-head"},
+    h("div",{},h("p",{class:"eyebrow"},`Match #${L.id}`),h("h2",{id:"lobby-title"},title),h("p",{class:"sub"+(go?" go":"")},sub)),
+    h("div",{class:"side"},
+      timer && L.deadline && h("span",{class:"secs","data-deadline":L.deadline,"aria-label":"Seconds left"},fmt(L.deadline-nowS())),
+      closable && h("button",{class:"x","aria-label":"Minimize",title:"Minimize",onclick:dismissLobby},"×")));
+}
+const timerBar=L=>L.deadline&&h("div",{class:"timer","aria-hidden":"true"},h("i",{"data-deadline":L.deadline,"data-total":L.step_seconds,"data-kind":"bar",style:`width:${100*Math.max(0,L.deadline-nowS())/L.step_seconds}%`}));
+const chip=p=>h("div",{class:"chip"},badge(p.rating,32),h("span",{class:"name"},p.name,dot(p)),p.is_captain&&h("span",{class:"cap",title:"Captain"},"CAPT"));
+
+function viewReady(L){
+  const acc=L.players.filter(p=>p.accepted).length, mine=L.me&&L.me.accepted;
+  const ring=h("div",{class:"ring"});
+  ring.innerHTML=`<svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="44"/><circle class="prog" cx="50" cy="50" r="44" pathLength="100" data-kind="ring" data-deadline="${L.deadline}" data-total="${L.step_seconds}"/></svg>`;
+  ring.append(h("b",{"data-deadline":L.deadline,"aria-label":"Seconds left to accept"},fmt(L.deadline-nowS())));
+  return [
+    popHead(L,"Match found",mine?"You’re in. Waiting for everyone else…":`${L.players.length} players found. Accept to start the captains draft.`,{closable:false}),
+    h("div",{class:"pop-body ready"},ring,
+      h("div",{class:"accepts","aria-hidden":"true"},...L.players.map(p=>h("i",{class:p.accepted?"on":null}))),
+      h("p",{class:"muted",style:"margin:0"},`${acc} of ${L.players.length} accepted`)),
+    h("div",{class:"pop-foot"},
+      mine ? h("button",{class:"pill ok big",disabled:true},"Accepted ✓")
+           : h("button",{class:"pill ok big",autofocus:true,onclick:()=>act(L,"accept")},"Accept"),
+      !mine && h("button",{class:"pill ghost",onclick:()=>act(L,"decline")},"Decline")),
+  ];
+}
+
+function viewDraft(L){
+  const done=L.players.filter(p=>p.pick_no).length, mine=!!(L.me&&L.me.my_turn), cap=captain(L,L.turn);
+  const size=L.players.length/2;
+  const team=t=>{
+    const ps=L.players.filter(p=>p.team===t).sort((a,b)=>(b.is_captain-a.is_captain)||(a.pick_no-b.pick_no));
+    const o=ps.filter(p=>p.position==="offense").length;
+    return h("section",{class:"team "+t,"aria-label":teamName(t)+" team"},h("h3",{},teamName(t),h("small",{},`${o} O · ${ps.length-o} D`)),
+      ...ps.map(chip),...Array.from({length:size-ps.length},()=>h("div",{class:"chip empty"},"Open slot")));
+  };
+  const pool=L.players.filter(p=>!p.team).sort((a,b)=>b.rating-a.rating);
+  return [
+    popHead(L,"Captains draft",mine?"Your pick. Choose a player for your team.":`${cap?cap.name:"The captain"} is picking for ${teamName(L.turn)}…`,{timer:true,go:mine}),
+    timerBar(L),
+    h("div",{class:"pop-body"},
+      h("ol",{class:"order","aria-label":"Pick order"},...L.pick_order.map((t,i)=>h("li",{class:`${t}${i<done?" done":""}${i===done?" now":""}`,title:`Pick ${i+1}: ${teamName(t)}`},String(i+1)))),
+      h("div",{class:"draft"},team("red"),
+        h("section",{class:"pool"},h("h3",{},"Player pool",h("small",{},`${pool.length} left`)),
+          ...pool.map(p=>h("button",{class:"pick",disabled:!mine,onclick:()=>act(L,"pick",{name:p.name}),"aria-label":`Pick ${p.name}, ${posLabel(p.position)}, rating ${p.rating}`},
+            badge(p.rating,38),h("span",{class:"who"},h("span",{class:"name"},p.name,dot(p)),h("span",{class:"tags"},posLabel(p.position))),
+            h("span",{class:"go"},"Pick →")))),
+        team("blue"))),
+  ];
+}
+
+function viewVeto(L){
+  const mine=!!(L.me&&L.me.my_turn), cap=captain(L,L.turn), left=L.map_pool.filter(m=>!m.banned_by).length;
+  const chance=id=>{const m=MAPS.find(x=>x.id===id);return m?`${m.chance.toFixed(1)}%`:""};
+  return [
+    popHead(L,"Map veto",mine?`Your ban. ${left-1} more ban${left===2?"":"s"} until the map is locked in.`:`${cap?cap.name:"The captain"} (${teamName(L.turn)}) is banning a map…`,{timer:true,go:mine}),
+    timerBar(L),
+    h("div",{class:"pop-body"},
+      h("p",{class:"muted",style:"margin:0 0 12px;font-size:13px"},"Maps were drawn by community vote chance. Captains take turns banning, blue first. The last map standing is played."),
+      h("div",{class:"veto"},...L.map_pool.map(m=>{
+        const card=h("div",{class:"vmap"+(m.banned_by?" banned "+m.banned_by:mine?" can":"")});
+        card.insertAdjacentHTML("beforeend",mapSVG(m.name));
+        card.append(h("div",{class:"vrow"},h("b",{},m.name),h("small",{},chance(m.id))),
+          m.banned_by ? h("span",{class:"stamp"},`Banned by ${teamName(m.banned_by)}`)
+                      : h("button",{class:"pill ban",disabled:!mine,onclick:()=>act(L,"ban",{map_id:m.id}),"aria-label":`Ban ${m.name}`},"Ban"));
+        return card;
+      }))),
+  ];
+}
+
+function viewServer(L){
+  const mine=L.me&&L.me.server_vote;
+  return [
+    popHead(L,"Server vote",`Playing ${L.map}. Pick the server you want; most votes wins.`,{timer:true}),
+    timerBar(L),
+    h("div",{class:"pop-body"},h("div",{class:"servers"},...L.servers.map(s=>h("button",{class:"server"+(mine===s.name?" mine":""),onclick:()=>act(L,"server",{server:s.name})},
+      h("span",{},s.name),h("b",{},`${s.votes} vote${s.votes===1?"":"s"}`))))),
+  ];
+}
+
+function viewMatch(L){
+  const red=captain(L,"red"), meRed=!!(L.me&&L.me.is_captain&&L.me.team==="red");
+  const hero=h("div",{class:"hero"}); hero.insertAdjacentHTML("beforeend",mapSVG(L.map||"?"));
+  hero.append(h("div",{},h("b",{},L.map||"Map not set"),h("span",{},L.server?`Server: ${L.server}`:"")));
+  const team=t=>h("section",{class:"team "+t},h("h3",{},teamName(t)),...L.players.filter(p=>p.team===t).sort((a,b)=>b.is_captain-a.is_captain).map(chip));
+  const group=h("div",{class:"group"});
+  if(L.group_link) group.append(h("a",{class:"pill ok big",href:L.group_link,target:"_blank",rel:"noopener"},"Join the TagPro group"));
+  const botBusy=!L.group_link&&(L.group_bot==="running"||L.group_bot==="retry");
+  if(botBusy) group.append(h("span",{class:"muted",style:"display:flex;align-items:center;justify-content:center;gap:8px"},h("span",{class:"live-dot"}),"Creating the TagPro group…"));
+  else if(meRed){
+    if(L.group_bot==="failed"&&!L.group_link) group.append(h("span",{class:"muted"},"The bot couldn’t create the group, so it’s on you."));
+    const inp=h("input",{type:"url",required:true,placeholder:"https://tagpro.koalabeast.com/groups/…","aria-label":"TagPro group link",value:GROUP_DRAFT||L.group_link||"",oninput:e=>{GROUP_DRAFT=e.target.value}});
+    const f=h("form",{},inp,h("button",{class:"pill primary"},L.group_link?"Update":"Share"));
+    f.addEventListener("submit",async e=>{e.preventDefault(); await act(L,"group",{link:inp.value}); GROUP_DRAFT="";});
+    group.append(h("span",{class:"muted"},L.group_link?"Wrong link? Paste the right one.":"You’re the red captain: create a private group on TagPro and paste its link here."),f);
+  } else if(!L.group_link) group.append(h("span",{class:"muted"},`Waiting for ${red?red.name:"the red captain"} to create the TagPro group…`));
+  return [
+    popHead(L,STEP[L.status],L.status==="in_progress"?"Good luck, have fun.":"Teams and map are locked in."),
+    h("div",{class:"pop-body"},hero,h("div",{class:"teams2"},team("red"),team("blue")),L.me&&group),
+    h("div",{class:"pop-foot"},h("button",{class:"pill",onclick:dismissLobby},"Close")),
+  ];
+}
+
 /* ---------- routing ---------- */
 const VIEWS=["home","top100","maps","rules","report"]; let current="home";
 function go(v,push=true){
@@ -467,6 +825,7 @@ window.addEventListener("hashchange",()=>go(location.hash.slice(1),false));
     renderSeason(season);
     [BOARD,MAPS] = await Promise.all([api("/api/leaderboard"),api("/api/maps")]);
     renderBoard(); renderMaps(); renderGlance();
+    await refreshPlay(); connectLive();
   }catch(err){
     $("main").prepend(h("p",{class:"empty err"},err.message));
   }
