@@ -19,7 +19,8 @@ Log in with Discord, then register your TagPro name and the position you play: O
 - The two highest-rated players captain. The lower-rated captain picks first, in 1-2-2-1 order (red, blue, blue, red, red, blue). Aim for two offense and two defense.
 - Seven maps are drawn at random from the rotation, every map equally likely. Captains take turns banning, blue first, three bans each, until one is left. Then everyone votes on a server and the red captain shares the group link.
 - Your rating is your Elo. Everyone starts at 1000.
-- A win between evenly matched teams is worth about 25 Elo. Beating a stronger team earns more and losing to a weaker one costs more. Team strength is the average Elo of its players, and everyone on a team moves by the same amount.
+- A win between evenly matched teams is worth about 25 Elo. Beating a stronger team earns more and losing to a weaker one costs more. Team strength is the average Elo of its players.
+- If you're rated below the game's average, wins count for more and losses for less (up to half again). Players rated above the average get a smaller version of the same, so playing in lower-rated games doesn't cost you. If you keep winning games against higher-rated lobbies, your wins count for even more, up to double.
 - Your first 10 games of a season are placements: they count for a bit more, and your Elo stays hidden (shown as "New") until they're done. After that you appear on the Top 100.
 
 ## Map voting
