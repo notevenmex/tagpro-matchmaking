@@ -222,6 +222,45 @@ class ScoreReport(Base):
     reported_at: Mapped[float] = mapped_column(Float)
 
 
+class ResultLookup(Base):
+    """The search for a lobby's game on tagpro.eu, which sets the final score when found (see tagpro_eu.py).
+
+    status: searching -> found (score set from tagpro.eu), gave_up (captains report it), or closed (the
+    match was settled some other way first). checked holds tagpro.eu match ids already ruled out.
+    """
+    __tablename__ = "result_lookups"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lobby_id: Mapped[int] = mapped_column(ForeignKey("lobbies.id"), unique=True)
+    status: Mapped[str] = mapped_column(String(10), default="searching")
+    started_at: Mapped[float] = mapped_column(Float)  # when the game got its group link
+    next_try: Mapped[float] = mapped_column(Float, default=0)
+    checked: Mapped[list] = mapped_column(JSON, default=list)
+    hints: Mapped[list] = mapped_column(JSON, default=list)  # tagpro.eu match ids pasted by a captain or admin
+    tagpro_eu_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    asked_captains: Mapped[bool] = mapped_column(Boolean, default=False)  # DMed to report by hand
+    error: Mapped[str] = mapped_column(String(300), default="")
+
+
+class PlayerStat(Base):
+    """One player's stats in one match, read from its tagpro.eu record. Times are whole seconds."""
+    __tablename__ = "player_stats"
+    __table_args__ = (UniqueConstraint("match_id", "player_id"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id"))
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
+    season_id: Mapped[int] = mapped_column(ForeignKey("seasons.id"))
+    tagpro_eu_id: Mapped[int] = mapped_column(Integer)
+    caps: Mapped[int] = mapped_column(Integer, default=0)
+    returns: Mapped[int] = mapped_column(Integer, default=0)
+    tags: Mapped[int] = mapped_column(Integer, default=0)
+    grabs: Mapped[int] = mapped_column(Integer, default=0)
+    drops: Mapped[int] = mapped_column(Integer, default=0)
+    pops: Mapped[int] = mapped_column(Integer, default=0)
+    hold: Mapped[int] = mapped_column(Integer, default=0)
+    prevent: Mapped[int] = mapped_column(Integer, default=0)
+    played: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class VoiceRoom(Base):
     """A temporary Discord voice channel for one team of a lobby (see voice.py).
 
