@@ -7,14 +7,14 @@ always-on services, WebSockets, background workers, and custom domains with free
 What's already in the repo:
 
 - `Dockerfile`: builds the image and starts uvicorn on Render's `$PORT` with one worker.
-- `render.yaml`: a Render **Blueprint** that creates the website and its Postgres database in one
-  go. It runs `python -m app.seed` before each deploy (this does nothing once a season exists),
-  health-checks `/healthz`, keeps one instance, and fills in `DATABASE_URL` and `SESSION_SECRET`
-  for you.
+- `render.yaml`: a Render **Blueprint** that creates the website, its Postgres database and the
+  MexBot worker in one go. For the website, it runs `python -m app.seed` before each deploy (this
+  does nothing once a season exists), health-checks `/healthz`, keeps one instance, and fills in
+  `DATABASE_URL` and `SESSION_SECRET` for you.
 - Postgres support: the app accepts Render's `postgresql://` URL as is.
 
-**Cost:** about $13 a month for the site ($7 web service plus $6 Postgres) on the free Hobby
-workspace. MexBot adds $7 (see step 7). Render's free tier isn't suitable, because free web
+**Cost:** about $20 a month on the free Hobby workspace: $7 for the web service, $6 for
+Postgres and $7 for MexBot. Render's free tier isn't suitable, because free web
 services go to sleep and free databases expire.
 
 Everything below is done in your own accounts. Secrets only ever go into Render's
@@ -30,8 +30,8 @@ Buy `tagpropugs.com` at a registrar; it was unregistered when we checked on Octo
 
 1. Sign up at https://render.com with your GitHub account and add a payment method.
 2. Click **New → Blueprint**, connect GitHub if asked, and pick `notevenmex/tagpro-matchmaking`.
-   Render reads `render.yaml` and lists what it will create: the `tagpropugs` web service and the
-   `tagpropugs-db` database.
+   Render reads `render.yaml` and lists what it will create: the `tagpropugs` web service, the
+   `tagpropugs-db` database and the `mexbot` worker.
 3. Render asks for the values marked secret. Fill them in:
    - `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET`: from
      https://discord.com/developers/applications, your app → **OAuth2**.
@@ -102,24 +102,15 @@ in the web service's **Environment** tab, then save, which redeploys:
 Once the tagpro.eu results feature is merged, it runs inside the web service too and calls
 https://tagpro.eu. Render allows outbound traffic by default, so nothing needs setting up.
 
-## 7. Host MexBot (the music bot)
+## 7. MexBot (the music bot)
 
-MexBot is a separate, always-on music bot. It logs in as the same Discord bot as the site
-(same token), but it doesn't talk to the site or the database. It lives in `mexbot/` with its own Dockerfile, and runs as a Render **Background
-Worker** ($7 a month). Its full steps are in `mexbot/README.md`. In short:
-
-1. **New → Background Worker**, pick this repo, and set:
-   - **Language:** Docker
-   - **Root Directory:** `mexbot`
-   - **Dockerfile Path:** `./Dockerfile`
-   - **Instance type:** the $7 one
-   - **Name:** `mexbot`
-2. Environment: `DISCORD_TOKEN` (the same value as the site's `DISCORD_BOT_TOKEN`), plus optional `MEXBOT_GUILD_ID` (slash commands
-   show up instantly in that server) and `YOUTUBE_PROXY` (only if YouTube blocks Render's servers).
-3. Keep it at one instance, so there's only one copy of the bot online.
-
-If the MexBot block has been added to `render.yaml`, step 1 happens automatically: open the
-Blueprint and click **Sync** instead.
+MexBot is a separate, always-on music bot. It logs in as the same Discord bot as the site, but it
+doesn't talk to the site or the database. The Blueprint creates it as the `mexbot` **Background
+Worker** ($7 a month, one instance) from `mexbot/`. Its `DISCORD_TOKEN` is copied automatically
+from the site's `DISCORD_BOT_TOKEN`. When Render asks, you can also fill in `MEXBOT_GUILD_ID`
+(slash commands show up instantly in that server). Fill in `YOUTUBE_PROXY` only if YouTube blocks
+Render's servers. Stop any copy running on your PC once it's live, so only one is logged in. More
+detail is in `mexbot/README.md`.
 
 ## Things to know
 
