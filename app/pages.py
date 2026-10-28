@@ -58,3 +58,30 @@ def put_rules(body: RulesIn, admin_id: str = Depends(auth.require_admin), db: Se
     db.add(row)
     db.commit()
     return rules_out(row)
+
+
+# ---------- the "match ready" DM's invite link and rules (match_dm.py) ----------
+def _match_dm_out(db: Session) -> dict:
+    from . import match_dm
+    s = match_dm.settings(db)
+    return {**s, "rule_lines": match_dm.rule_lines(s["rules"])}
+
+
+@router.get("/api/match-dm")
+def get_match_dm(admin_id: str = Depends(auth.require_admin), db: Session = Depends(get_db)):
+    return _match_dm_out(db)
+
+
+class MatchDmIn(BaseModel):
+    discord_invite: str = Field(max_length=200, pattern=r"^(https://\S+)?$")
+    rules: str = Field(max_length=2000)
+
+
+@router.put("/api/match-dm")
+def put_match_dm(body: MatchDmIn, admin_id: str = Depends(auth.require_admin), db: Session = Depends(get_db)):
+    for key, value in (("discord_invite", body.discord_invite.strip()), ("match_rules", body.rules)):
+        row = db.get(SiteText, key) or SiteText(key=key)
+        row.body, row.updated_by, row.updated_at = value, admin_id, now()
+        db.add(row)
+    db.commit()
+    return _match_dm_out(db)

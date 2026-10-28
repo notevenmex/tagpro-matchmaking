@@ -1,7 +1,8 @@
 # Community Discord server and bot
 
-One Discord bot does everything: it DMs captains the TagPro group link ([tagpro-groups.md](tagpro-groups.md))
-and gives every match its own **Red** and **Blue** voice channels. It runs inside the website process
+One Discord bot does everything: it creates each match's TagPro group ([tagpro-groups.md](tagpro-groups.md)),
+gives every match its own **Red** and **Blue** voice channels, and sends every player one "match
+ready" DM with the group link, their voice channel, the Discord invite and the rules. It runs inside the website process
 (started from the app's lifespan), so there's no separate worker to deploy. It only uses Discord's REST
 API, so it needs no gateway connection and no privileged intents.
 
@@ -25,8 +26,8 @@ Roles, top to bottom: **Admin** (you), **Ranked PUGs** (the bot's own role, adde
    channel to its own team's players (plus Moderators) instead.
 2. Anyone already in a voice channel on the server (the **Waiting Room** is the place to wait in the
    queue) is moved straight into their team channel. Discord doesn't let a bot pull someone into voice
-   who isn't connected, so everyone also gets a DM with a link to their channel, and the match page
-   shows a **Join Red/Blue voice** button.
+   who isn't connected, so the match ready DM has a link to their channel, and the match page shows
+   a **Join Red/Blue voice** button.
 3. When the match is over (score verified, disputed, or the lobby cancelled), the channels are deleted
    two minutes later (`VOICE_GRACE_SECONDS`). Anyone still in them is moved to the **Post-Game Lounge**
    first. A channel that lives longer than `VOICE_MAX_HOURS` (3) is removed anyway, and leftover match
@@ -117,14 +118,16 @@ queue, that team voice is required, how captains report scores, and how to dispu
 | Variable | Default | What it does |
 |---|---|---|
 | `VOICE_CHANNELS` | `0` | `1` turns team voice channels on |
-| `DISCORD_BOT_TOKEN` | | the bot's token (shared with the captain DMs) |
+| `DISCORD_BOT_TOKEN` | | the bot's token (shared with the group bot and match ready DMs) |
 | `DISCORD_GUILD_ID` | | the community server's ID |
 | `VOICE_CATEGORY_ID` | | category the match channels go in |
 | `VOICE_LOBBY_CHANNEL_ID` | | voice channel players are moved to when the match channels close |
 | `VOICE_STAFF_ROLE_ID` | | role that can always join match channels, even private ones |
 | `VOICE_GRACE_SECONDS` | `120` | how long the channels stay after the match ends |
 | `VOICE_MAX_HOURS` | `3` | channels older than this are removed even if the match never ended |
-| `VOICE_DMS` | `1` | `0` stops the "join your team's voice" DMs |
+| `VOICE_DMS` | `0` | `1` also sends a separate "join your team's voice" DM when the draft ends |
+| `MATCH_DMS` | `1` | `0` stops the match ready DM |
+| `DISCORD_INVITE_URL` | | invite link in the match ready DM until an admin sets one on the Rules page |
 | `VOICE_PRIVATE` | `0` | `1` lets only that team's players (and `VOICE_STAFF_ROLE_ID`) join each channel |
 
 ## Not done yet

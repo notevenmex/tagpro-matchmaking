@@ -273,6 +273,17 @@ class PlayerStat(Base):
     played: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class MatchNotice(Base):
+    """The "match ready" DM sent to every player of a lobby once its TagPro group link is known
+    (see match_dm.py). link is the group link that went out, so a corrected link gets re-sent."""
+    __tablename__ = "match_notices"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lobby_id: Mapped[int] = mapped_column(ForeignKey("lobbies.id"), unique=True)
+    link: Mapped[str] = mapped_column(String(200), default="")
+    sent: Mapped[int] = mapped_column(Integer, default=0)
+    sent_at: Mapped[float] = mapped_column(Float, default=0)
+
+
 class VoiceRoom(Base):
     """A temporary Discord voice channel for one team of a lobby (see voice.py).
 
