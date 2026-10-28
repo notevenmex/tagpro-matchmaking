@@ -102,10 +102,7 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .glance .sub{margin-left:auto;color:var(--muted);font-size:13px}
 
 /* leaderboard */
-.board{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
-@media (max-width:1180px){.board{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media (max-width:760px){.board{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:520px){.board{grid-template-columns:1fr}}
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
 .col{background:var(--panel);border-radius:4px;padding:8px 10px}
 .row{display:flex;align-items:center;gap:10px;padding:5px 4px;width:100%;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;border-radius:4px}
 .row:hover{background:var(--panel-2)}
@@ -131,13 +128,25 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .legend{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 20px;font-size:13px;color:var(--muted);margin-bottom:16px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .tag.title{color:#ffc800;cursor:help}
-.season-titles{margin-bottom:18px}
-.season-titles h2{font-size:24px}
-.season-titles .trow,.title-admin .trow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;border-top:1px solid var(--line);padding:8px 0;font-size:14px}
-.season-titles .trow:first-of-type{border-top:0}
-.season-titles .trow b{font-family:var(--display);font-size:17px;color:#ffc800}
-.season-titles .trow .sub,.title-admin .sub{color:var(--muted)}
-.season-titles .holder{margin-left:auto;background:none;border:0;color:var(--text);font:inherit;font-weight:600;cursor:pointer;padding:0}
+#v-top100{max-width:1240px;margin:0 auto}
+#v-top100 h2{font-family:var(--display);font-weight:700;font-size:26px;margin:0}
+.season-titles{margin:4px 0 32px}
+.season-titles h2{margin-bottom:12px!important}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+.tcard{background:var(--panel);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;border-top:3px solid #ffc800;min-width:0}
+.tcard.unclaimed{border-top-color:var(--line)}
+.tcard .tname{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#ffc800}
+.tcard.unclaimed .tname{color:var(--muted)}
+.tcard .holder{align-self:flex-start;background:none;border:0;padding:0;color:var(--text);font-family:var(--display);font-weight:700;font-size:22px;cursor:pointer;text-align:left;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tcard .holder:hover{text-decoration:underline}
+.tcard .holder.open{color:var(--muted);font-weight:500;font-size:18px;cursor:default;text-decoration:none}
+.tcard .tdetail{font-size:13px;color:var(--text);opacity:.85}
+.tcard .treward{margin-top:auto;padding-top:8px;font-size:12px;color:var(--muted)}
+.tcard .treward span{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.8}
+.board-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px;margin-bottom:12px}
+.board-head .legend{margin:0}
+.title-admin .trow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;border-top:1px solid var(--line);padding:8px 0;font-size:14px}
+.title-admin .sub{color:var(--muted)}
 .title-admin .trow input{flex:1 1 120px;min-width:0}
 .title-admin .trow input.season{flex:0 0 56px}
 .title-admin .btn{margin:0;padding:5px 12px}
@@ -386,12 +395,15 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   </section>
 
   <section class="view" id="v-top100" hidden>
-    <div class="legend">
-      <span><i class="dot"></i>Offense</span>
-      <span><i class="dot d"></i>Defense</span>
-      <span><i class="dot f"></i>Flex</span>
+    <section class="season-titles" id="season-titles" hidden></section>
+    <div class="board-head">
+      <h2>Top 100</h2>
+      <div class="legend">
+        <span><i class="dot"></i>Offense</span>
+        <span><i class="dot d"></i>Defense</span>
+        <span><i class="dot f"></i>Flex</span>
+      </div>
     </div>
-    <div class="report season-titles" id="season-titles" hidden></div>
     <div class="board" id="board"></div>
   </section>
 
@@ -569,10 +581,13 @@ function renderSeasonTitles(){
   // the Top 100 shows this season's titles: what each one rewards and who holds it
   const box=$("#season-titles"), list=TITLES.filter(t=>t.season===SEASON_NO);
   box.hidden=!list.length; if(!list.length){ box.replaceChildren(); return; }
-  box.replaceChildren(h("h2",{},`Season ${SEASON_NO} titles and rewards`),...list.map(t=>h("div",{class:"trow"},
-    h("b",{},t.title), t.reward?h("span",{class:"sub"},t.reward):null,
-    t.player?h("button",{class:"holder",onclick:()=>openPlayer(t.player)},t.player,t.stat?h("span",{class:"sub",style:"font-weight:400"}," · "+t.value):null)
-            :h("span",{class:"holder sub",style:"cursor:default"},t.stat?t.value:"Up for grabs"))));
+  // one card per title: the title, who holds it, their number for a stat title, and the reward
+  box.replaceChildren(h("h2",{},`Season ${SEASON_NO} titles`),h("div",{class:"tgrid"},...list.map(t=>{
+    const who=t.player?h("button",{class:"holder",onclick:()=>openPlayer(t.player)},t.player):h("span",{class:"holder open"},"Up for grabs");
+    return h("article",{class:"tcard"+(t.player?"":" unclaimed")},h("div",{class:"tname"},t.title),who,
+      t.stat?h("div",{class:"tdetail"},t.value):null,
+      t.reward?h("div",{class:"treward"},h("span",{},"Reward"),t.reward):null);
+  })));
 }
 function renderTitleAdmin(){
   const box=$("#title-admin"), msg=h("span",{class:"formmsg","aria-live":"polite"}), statBox=h("div");
