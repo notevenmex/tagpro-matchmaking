@@ -406,6 +406,7 @@ def live_out(db: Session, lobby: Lobby) -> dict:
     team = lambda t: [(lp, p) for lp, p in lps if lp.team == t]  # noqa: E731
     return {"id": lobby.id, "status": lobby.status,
             "map": db.get(Map, lobby.map_id).name if lobby.map_id else None, "server": lobby.server,
+            "group_link": lobby.group_link,  # anyone can join the group to spectate
             "avg_elo": avg([lp.elo for lp, _ in lps]),
             "teams": {t: {"avg_elo": avg([lp.elo for lp, _ in team(t)]),
                           "players": [p.tagpro_name for lp, p in sorted(team(t), key=lambda x: (not x[0].is_captain,
