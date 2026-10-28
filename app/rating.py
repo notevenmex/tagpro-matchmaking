@@ -17,10 +17,15 @@ On top of that, each player's own change is scaled (see adjust()):
 - Hot streak: if at least 4 of your last 10 matches were in lobbies rated above you and you won
   60%+ of those, wins count for more (up to +75% at a 100% win rate).
 - Momentum: after 2 wins in a row, each further win counts 10% more (3rd win +10%, 4th +20%,
-  and so on with no ceiling, so a long streak keeps climbing even at the top). Losing streaks
-  work the same way for losses, up to +50%.
+  up to +100% at the 12th, and the same at the top of the ladder). Losing streaks work the same
+  way for losses, up to +50%.
 The gap bonus and hot streak together are capped at 2x for a win; win momentum multiplies on top
 of that. Losses stay between 0.5x and 1.5x of the normal amount.
+
+Zero-sum: the bonuses above would hand out more Elo than they take, so the average Elo would
+creep up every season. After each match the winners' gains and the losers' losses are scaled
+to meet in the middle, so a match never adds or removes Elo overall. Who gets the bigger share
+of each side is unchanged.
 Tune the constants here.
 """
 from sqlalchemy import func, select
@@ -45,7 +50,8 @@ HOT_MIN_WINRATE = 0.6      # win rate in up games where the boost starts
 HOT_MAX = 0.75             # boost at a 100% win rate in up games
 STREAK_START = 2           # wins (or losses) in a row before momentum kicks in
 STREAK_STEP = 0.1          # extra per result beyond that: the 3rd in a row is +10%, the 4th +20%...
-LOSS_STREAK_MAX = 0.5      # most a losing streak can add (winning streaks have no ceiling)
+WIN_STREAK_MAX = 1.0       # most a winning streak can add
+LOSS_STREAK_MAX = 0.5      # most a losing streak can add
 WIN_CAP = 2.0              # most a win can be multiplied by
 LOSS_FLOOR = 0.5           # least a loss can be multiplied by
 LOSS_CAP = 1.5             # most a loss can be multiplied by
@@ -67,7 +73,7 @@ def momentum(streak: int, won: bool) -> float:
     if run < STREAK_START:
         return 0.0
     extra = STREAK_STEP * (run - STREAK_START + 1)
-    return extra if won else min(LOSS_STREAK_MAX, extra)
+    return min(WIN_STREAK_MAX if won else LOSS_STREAK_MAX, extra)
 
 
 def adjust(won: bool, own_elo: float, lobby_avg: float, hot: float = 0.0, streak: int = 0) -> float:
@@ -103,6 +109,17 @@ def hot_streak(db: Session, player: Player, season: Season) -> float:
         return 0.0
     rate = sum(up) / len(up)
     return max(0.0, HOT_MAX * (rate - HOT_MIN_WINRATE) / (1 - HOT_MIN_WINRATE))
+
+
+def zero_sum(deltas: list[int]) -> list[int]:
+    """Scale gains and losses so they cancel out, meeting halfway; each still moves at least 1."""
+    gained = sum(d for d in deltas if d > 0)
+    lost = -sum(d for d in deltas if d < 0)
+    if not gained or not lost:
+        return deltas
+    target = (gained + lost) / 2
+    return [(1 if d > 0 else -1) * max(1, round(abs(d) * target / (gained if d > 0 else lost)))
+            for d in deltas]
 
 
 def current_streak(db: Session, player: Player, season: Season) -> int:
@@ -160,13 +177,15 @@ def record_match(db: Session, season: Season, *, winner: str, lineup: list[tuple
     m = Match(season_id=season.id, map_id=map_id, winner=winner, reported_by=reported_by)
     db.add(m)
     db.flush()
+    mults = [adjust(team == winner, r.elo, lobby_avg, hot[p.id], streak[p.id]) for p, team, _, r in entries]
+    deltas = zero_sum([elo_change(avg[team], avg["blue" if team == "red" else "red"], team == winner,
+                                  r.games < PLACEMENT_GAMES, mult)
+                       for (p, team, _, r), mult in zip(entries, mults)])
     changes = []
-    for p, team, pos, r in entries:
+    for (p, team, pos, r), mult, delta in zip(entries, mults, deltas):
         before = r.elo
         won = team == winner
-        opp = "blue" if team == "red" else "red"
-        mult = adjust(won, before, lobby_avg, hot[p.id], streak[p.id])
-        r.elo = max(ELO_FLOOR, before + elo_change(avg[team], avg[opp], won, r.games < PLACEMENT_GAMES, mult))
+        r.elo = max(ELO_FLOOR, before + delta)
         r.games += 1
         r.wins += int(won)
         db.add(MatchPlayer(match_id=m.id, player_id=p.id, team=team, position=pos,

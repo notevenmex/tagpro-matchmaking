@@ -50,7 +50,8 @@ def test_momentum_from_win_and_loss_streaks():
     from app.rating import adjust, momentum
     assert momentum(1, True) == 0 and momentum(2, True) == 0.1  # 3rd win in a row: +10%
     assert abs(momentum(4, True) - 0.3) < 1e-9
-    assert abs(momentum(20, True) - 1.9) < 1e-9 and momentum(-20, False) == 0.5  # wins keep growing, losses cap
+    assert abs(momentum(9, True) - 0.8) < 1e-9 and momentum(20, True) == 1.0  # wins grow up to +100%
+    assert momentum(-20, False) == 0.5  # losing streaks cap at +50%
     assert momentum(-3, False) == momentum(3, True) and momentum(3, False) == 0  # a win snaps a losing streak
     assert abs(adjust(False, 1000, 1000, streak=-3) - 1.2) < 1e-9  # 4th loss in a row costs 20% more
     assert adjust(False, 1000, 1000, streak=-9) == 1.5  # losses never more than 1.5x
@@ -79,4 +80,30 @@ def test_current_streak_counts_results_in_a_row():
         by = {c["name"]: c for c in changes}
         assert by["Streak0"]["multiplier"] == 1.2 and by["Streak7"]["multiplier"] == 1.2  # 4th in a row: +20%
         assert by["Streak0"]["change"] == 45 and by["Streak7"]["change"] == -45  # even teams in placements: 25 * 1.5 * 1.2
+        db.rollback()
+
+
+def test_zero_sum_balances_each_match():
+    from app.rating import zero_sum
+    assert zero_sum([25, 25, 25, 25, -25, -25, -25, -25]) == [25, 25, 25, 25, -25, -25, -25, -25]
+    out = zero_sum([50, 25, 25, 25, -25, -25, -12, -25])  # an underdog bonus on each side
+    assert sum(out) == 0 and out[0] == 2 * out[1] and out[4] < out[6] < 0  # shares kept, gains cut, losses grown
+    assert zero_sum([1, -40]) == [20, -20] and zero_sum([3, 0]) == [3, 0]
+
+
+def test_record_match_is_zero_sum():
+    from sqlalchemy import select
+    from app.db import Player, Season, SessionLocal
+    from app.rating import get_rating, record_match
+    with SessionLocal() as db:
+        s = db.scalar(select(Season).where(Season.is_active.is_(True)))
+        players = [Player(tagpro_name=f"Zero{i}", position="offense", tags=[]) for i in range(8)]
+        db.add_all(players)
+        db.flush()
+        for i, p in enumerate(players):
+            r = get_rating(db, p, s)
+            r.elo, r.games = 800 + 100 * i, 20  # a spread lobby, past placements
+        _, changes = record_match(db, s, winner="red", reported_by="test",
+                                  lineup=[(p, "red" if i % 2 else "blue", "offense") for i, p in enumerate(players)])
+        assert abs(sum(c["change"] for c in changes)) <= 2  # only rounding left over
         db.rollback()
