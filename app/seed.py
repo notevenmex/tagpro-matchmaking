@@ -32,7 +32,7 @@ ARCHIVE_PLAYERS = [  # name, points, position, tags
 
 def elo_from_points(pts: int) -> int:
     """Old site points to FACEIT-style Elo. 10 points (a new player there) becomes 1000 (a new
-    player here), and each point is worth 31 Elo, so the 2017 #3 (43) lands just inside level 10."""
+    player here), and each point is worth 31 Elo, so the 2017 #3 (43) lands at 2023."""
     return 1000 + (pts - 10) * 31
 
 POS = {"o": "offense", "d": "defense"}

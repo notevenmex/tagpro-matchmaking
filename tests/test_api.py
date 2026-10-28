@@ -6,8 +6,8 @@ def test_public_pages():
     assert c.get("/").status_code == 200
     assert c.get("/api/season").json()["number"] == 4
     board = c.get("/api/leaderboard").json()
-    assert board[0]["name"] == "Warriors" and board[0]["elo"] == 2023 and board[0]["level"] == 10
-    assert c.get("/api/levels").json()["start_elo"] == 1000
+    assert board[0]["name"] == "Warriors" and board[0]["elo"] == 2023
+    assert c.get("/api/rating-rules").json()["start_elo"] == 1000
     maps = c.get("/api/maps").json()
     assert len(maps) == 12 and all(m["chance"] == 58.33 for m in maps)  # 7 of 12 drawn, votes ignored
 
@@ -39,7 +39,7 @@ def test_register_vote_and_report():
     assert ch["Spud"]["change"] < ch["NewGuy"]["change"]  # Spud is placed, so he moves the normal amount
     detail = u.get("/api/players/NewGuy").json()
     assert detail["recent"][0]["won"] is True and detail["recent"][0]["change"] is None  # hidden in placements
-    assert detail["rating"] == {"elo": None, "level": None, "games": 1, "wins": 1, "placements_left": 9}
+    assert detail["rating"] == {"elo": None, "games": 1, "wins": 1, "placements_left": 9}
     assert u.get("/api/players/Spud").json()["recent"][0]["change"] == ch["Spud"]["change"]
 
     bad = dict(body, players=body["players"] + [{"tagpro_name": "Nobody", "team": "red", "position": "offense"}])
