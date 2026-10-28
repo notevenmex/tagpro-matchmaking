@@ -121,7 +121,8 @@ class FakeDiscord:
         return True
 
 
-def test_opens_private_team_channels_and_moves_players():
+def test_opens_private_team_channels_and_moves_players(monkeypatch):
+    monkeypatch.setattr(voice, "PRIVATE", True)
     lid, teams = make_lobby()
     drafting, _ = make_lobby(status="drafting")  # teams not final yet: no channels
     api = FakeDiscord(in_voice=[teams["red"][0]])
@@ -149,6 +150,15 @@ def test_opens_private_team_channels_and_moves_players():
     created = sum(1 for m, p, _ in api.calls if m == "POST")
     asyncio.run(voice.run_once(api))  # nothing new to do
     assert sum(1 for m, p, _ in api.calls if m == "POST") == created
+
+
+def test_channels_are_open_to_everyone_by_default():
+    lid, teams = make_lobby()
+    api = FakeDiscord()
+    asyncio.run(voice.run_once(api))
+    for room in rooms(lid).values():
+        ow = {o["id"]: o for o in api.channels[room.channel_id]["permission_overwrites"]}
+        assert int(ow["guild-1"]["allow"]) & voice.CONNECT and not int(ow["guild-1"]["deny"])
 
 
 def test_deletes_channels_after_the_match_and_grace(setup, monkeypatch):
@@ -260,7 +270,9 @@ def test_server_setup_creates_layout_once(monkeypatch, capsys):
     assert {"🏆 Live Matches", "Waiting Room", "rules", "bot-log"} <= names
     live = next(c for c in state["channels"] if c["name"] == "🏆 Live Matches")
     assert f"VOICE_CATEGORY_ID={live['id']}" in out
-    assert {o["id"] for o in live["permission_overwrites"]} == {"guild-1", "roles-1", "bot-1"}
+    assert live["permission_overwrites"] == []  # anyone can see the match channels
+    staff = next(c for c in state["channels"] if c["name"] == "🛠 Staff")
+    assert {o["id"] for o in staff["permission_overwrites"]} == {"guild-1", "roles-1", "bot-1"}
 
     count = len(state["channels"]) + len(state["roles"])
     assert asyncio.run(discord_setup.main()) == 0  # second run: nothing new

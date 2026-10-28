@@ -32,7 +32,7 @@ LAYOUT = [
         ("support", 0, "")]),
     ("🔊 Voice", "everyone", [
         ("Waiting Room", 2, ""), ("Post-Game Lounge", 2, ""), ("Casual 1", 2, ""), ("Casual 2", 2, "")]),
-    ("🏆 Live Matches", "hidden", []),  # the bot creates and deletes the team channels here
+    ("🏆 Live Matches", "everyone", []),  # the bot creates and deletes the team channels here
     ("🛠 Staff", "staff", [("staff-chat", 0, ""), ("bot-log", 0, "")]),
 ]
 

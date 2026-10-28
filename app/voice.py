@@ -1,9 +1,9 @@
 """Temporary team voice channels on the community Discord, one Red and one Blue per match.
 
 Once the draft is done (the lobby reaches map_veto), the bot creates two voice channels under
-VOICE_CATEGORY_ID that only that team's players (plus staff and the bot) can see and join. Anyone
-already sitting in a voice channel on the server is moved straight in; everyone gets a DM with a
-link to their channel. When the lobby is over (finished, disputed or cancelled), the channels are
+VOICE_CATEGORY_ID. Anyone on the server can join them, unless VOICE_PRIVATE=1 limits each one to that
+team's players (plus staff and the bot). Players already sitting in a voice channel on the server
+are moved straight into their team's; everyone gets a DM with a link to it. When the lobby is over (finished, disputed or cancelled), the channels are
 deleted after VOICE_GRACE_SECONDS, and anyone still in them is moved to VOICE_LOBBY_CHANNEL_ID
 first if that's set.
 
@@ -33,6 +33,7 @@ STAFF_ROLE_ID = os.getenv("VOICE_STAFF_ROLE_ID", "")        # can see and join e
 GRACE_SECONDS = int(os.getenv("VOICE_GRACE_SECONDS", "120"))
 MAX_HOURS = float(os.getenv("VOICE_MAX_HOURS", "3"))        # safety net if a lobby never ends
 SEND_DMS = os.getenv("VOICE_DMS", "1") == "1"
+PRIVATE = os.getenv("VOICE_PRIVATE", "0") == "1"  # 1 = only that team (and staff) can join; 0 = anyone can
 
 # Teams are final once the draft is over; the channels stay up until the game is.
 OPEN = ("map_veto", "server_vote", "awaiting_group", "in_progress")
@@ -182,7 +183,9 @@ async def bot_user_id(api: Api) -> str:
 
 
 async def create_channel(api: Api, room: Room) -> str:
-    overwrites = [{"id": GUILD_ID, "type": 0, "deny": str(VIEW | CONNECT), "allow": "0"},  # @everyone
+    everyone = ({"id": GUILD_ID, "type": 0, "deny": str(VIEW | CONNECT), "allow": "0"} if PRIVATE
+                else {"id": GUILD_ID, "type": 0, "allow": str(VIEW | CONNECT | SPEAK | VAD), "deny": "0"})
+    overwrites = [everyone,
                   {"id": await bot_user_id(api), "type": 1, "allow": str(BOT_ALLOW), "deny": "0"}]
     if STAFF_ROLE_ID:
         overwrites.append({"id": STAFF_ROLE_ID, "type": 0, "allow": str(PLAYER_ALLOW | MOVE), "deny": "0"})

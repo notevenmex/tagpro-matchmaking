@@ -1,7 +1,7 @@
 # Community Discord server and bot
 
 One Discord bot does everything: it DMs captains the TagPro group link ([tagpro-groups.md](tagpro-groups.md))
-and gives every match private **Red** and **Blue** voice channels. It runs inside the website process
+and gives every match its own **Red** and **Blue** voice channels. It runs inside the website process
 (started from the app's lifespan), so there's no separate worker to deploy. It only uses Discord's REST
 API, so it needs no gateway connection and no privileged intents.
 
@@ -12,7 +12,7 @@ API, so it needs no gateway connection and no privileged intents.
 | 📢 Info | `#welcome`, `#rules`, `#announcements`, `#how-to-play` | everyone, only Moderators post |
 | 🎮 Ranked PUGs | `#general`, `#looking-for-pug`, `#match-results` (read-only), `#support` | everyone |
 | 🔊 Voice | Waiting Room, Post-Game Lounge, Casual 1, Casual 2 | everyone |
-| 🏆 Live Matches | *empty: the bot adds* `🔴 Match 12 · Red` *and* `🔵 Match 12 · Blue` *here* | Moderators and the bot; each match channel is also open to its own team |
+| 🏆 Live Matches | *empty: the bot adds* `🔴 Match 12 · Red` *and* `🔵 Match 12 · Blue` *here* | everyone (or only that team with `VOICE_PRIVATE=1`) |
 | 🛠 Staff | `#staff-chat`, `#bot-log` | Moderators |
 
 Roles, top to bottom: **Admin** (you), **Ranked PUGs** (the bot's own role, added when it joins),
@@ -21,8 +21,8 @@ Roles, top to bottom: **Admin** (you), **Ranked PUGs** (the bot's own role, adde
 ## How team voice works
 
 1. When the draft finishes (map veto starts), the bot creates the two team channels under 🏆 Live Matches.
-   `@everyone` is denied, and each player on that team is allowed by their Discord account, so the other
-   team can't see or join. Moderators can.
+   Anyone on the server can join them, so friends can listen in. Set `VOICE_PRIVATE=1` to lock each
+   channel to its own team's players (plus Moderators) instead.
 2. Anyone already in a voice channel on the server (the **Waiting Room** is the place to wait in the
    queue) is moved straight into their team channel. Discord doesn't let a bot pull someone into voice
    who isn't connected, so everyone also gets a DM with a link to their channel, and the match page
@@ -83,9 +83,7 @@ $env:DISCORD_BOT_TOKEN="..."; $env:DISCORD_GUILD_ID="..."; python -m app.discord
 
 Or make them by hand, and copy the IDs with right-click > Copy ID:
 
-- Category **🏆 Live Matches**: Edit Category > Permissions > `@everyone`: View Channel ✗; add the
-  **Moderator** role: View Channel ✓, Connect ✓; add the bot: View Channel ✓, Manage Channels ✓,
-  Connect ✓, Move Members ✓. Its ID is `VOICE_CATEGORY_ID`.
+- Category **🏆 Live Matches**: a normal category everyone can see. Its ID is `VOICE_CATEGORY_ID`.
 - Voice channel **Post-Game Lounge**: its ID is `VOICE_LOBBY_CHANNEL_ID` (optional).
 - Role **Moderator**: its ID is `VOICE_STAFF_ROLE_ID` (optional).
 
@@ -123,10 +121,11 @@ queue, that team voice is required, how captains report scores, and how to dispu
 | `DISCORD_GUILD_ID` | | the community server's ID |
 | `VOICE_CATEGORY_ID` | | category the match channels go in |
 | `VOICE_LOBBY_CHANNEL_ID` | | voice channel players are moved to when the match channels close |
-| `VOICE_STAFF_ROLE_ID` | | role that can see and join every match channel |
+| `VOICE_STAFF_ROLE_ID` | | role that can always join match channels, even private ones |
 | `VOICE_GRACE_SECONDS` | `120` | how long the channels stay after the match ends |
 | `VOICE_MAX_HOURS` | `3` | channels older than this are removed even if the match never ended |
 | `VOICE_DMS` | `1` | `0` stops the "join your team's voice" DMs |
+| `VOICE_PRIVATE` | `0` | `1` lets only that team's players (and `VOICE_STAFF_ROLE_ID`) join each channel |
 
 ## Not done yet
 
