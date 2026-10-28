@@ -107,6 +107,20 @@ one replica. To turn it on, add variables to the web service:
    each one does: `docs/discord-server.md`.
 4. Redeploy.
 
+## 7. Host MexBot (the music bot) next to the site
+
+MexBot is a separate, always-on bot with its own token. It doesn't talk to the site or the
+database. It lives in `mexbot/`, and the full steps are in [mexbot/README.md](../mexbot/README.md). In short:
+
+1. In the same Railway project, click **Create → GitHub Repo**, pick this repo, and name the service
+   `mexbot`.
+2. In that service's **Settings**, set **Root Directory** to `/mexbot` and the **Config-as-code**
+   path to `/mexbot/railway.json`. This matters: the root `railway.json` belongs to the website, and
+   its health check would make MexBot's deploys fail.
+3. Variables: `DISCORD_TOKEN` (MexBot's own token), plus optional `MEXBOT_GUILD_ID` (slash commands
+   show up instantly in that server) and `YOUTUBE_PROXY` (only if YouTube blocks Railway).
+4. Don't give it a domain. Keep it at one replica.
+
 ## Things to know
 
 - **Keep one replica.** The queue lock and the live-update WebSocket list are in memory, so a
@@ -117,6 +131,13 @@ one replica. To turn it on, add variables to the web service:
 - **Database changes:** tables are created on startup, but new columns on existing tables are not
   added automatically. Until we add migrations, a model change that alters an existing table
   needs a manual `ALTER TABLE` (Postgres service → **Data** or **Query**) or a migration step.
+- **Maps and rules:** a fresh database is seeded with the 12 MLTP majors, and admins can edit the
+  Rules page and the map pool on the site. A database seeded before this change keeps the 2017
+  map list until an admin presses **Use MLTP majors**.
+- **If you deployed before alt accounts were added:** `players.discord_id` is no longer unique, and
+  startup won't drop the old constraint. Recreate the database, or run this once in the Postgres
+  service's query tab:
+  `ALTER TABLE players DROP CONSTRAINT players_discord_id_key; CREATE INDEX IF NOT EXISTS ix_players_discord_id ON players (discord_id);`
 - **Backups:** on the Postgres service, open **Backups** and turn on scheduled backups if your plan offers them.
   Otherwise, run `pg_dump` against the database's public URL now and then.
 - **Secrets:** never put real values in `.env.example` or any committed file. If a secret leaks,

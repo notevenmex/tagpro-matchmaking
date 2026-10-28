@@ -9,7 +9,7 @@ def test_public_pages():
     assert board[0]["name"] == "Warriors" and board[0]["elo"] == 2023 and board[0]["level"] == 10
     assert c.get("/api/levels").json()["start_elo"] == 1000
     maps = c.get("/api/maps").json()
-    assert len(maps) == 10 and abs(sum(m["chance"] for m in maps) - 100) < 0.1
+    assert len(maps) == 12 and all(m["chance"] == 58.33 for m in maps)  # 7 of 12 drawn, votes ignored
 
 
 def test_register_vote_and_report():

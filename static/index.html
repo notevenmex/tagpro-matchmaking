@@ -106,6 +106,9 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .name{font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
 .dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--off)}
 .dot.d{background:var(--def)}
+.dot.f{background:linear-gradient(90deg,var(--off) 50%,var(--def) 50%)}
+.possel{display:flex;align-items:center;gap:8px;margin:6px 0 10px;font-size:14px}
+.possel select{width:auto}
 .tags{display:flex;flex-wrap:wrap;gap:2px 7px;font-family:var(--display);font-weight:700;font-size:11px;line-height:1.2;margin-top:1px}
 .tag{color:#5fb3ff}
 .tag.og{color:var(--red)}
@@ -119,6 +122,16 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .map{background:var(--panel);border-radius:4px;padding:10px;display:flex;flex-direction:column}
 .map svg{display:block;width:100%;height:auto;background:#000;border-radius:2px}
 .map h3{text-align:center;margin:8px 0 0;font-size:16px}
+.map img{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;background:#000;border-radius:2px}
+.map-admin{margin-bottom:18px}
+.map-admin summary{cursor:pointer;font-family:var(--display);font-weight:700;font-size:22px}
+.map-admin .row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-top:1px solid var(--line);padding:8px 0;font-size:14px}
+.map-admin .row:first-of-type{border-top:0}
+.map-admin .row input[type=text]{flex:1 1 160px;min-width:0}
+.map-admin .row .sub{color:var(--muted);flex:0 0 auto}
+.map-admin .row.off input[type=text]{opacity:.6}
+.map-admin .btn{margin:0;padding:5px 12px}
+.map-admin .tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
 .chance{text-align:center;font-size:12px;color:var(--muted)}
 .bar{height:4px;background:var(--panel-2);margin:6px 0 8px;border-radius:2px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--red);transition:width .35s ease}
@@ -132,6 +145,11 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .rules h2{font-family:var(--display);font-weight:700;font-size:28px;margin:22px 0 4px}
 .rules p,.rules li{color:var(--text)}
 .rules .draft{color:var(--muted);font-size:13px;margin-top:18px}
+.rules a{color:var(--text);text-decoration:underline}
+.rules .tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:18px}
+.rules .tools .btn{width:auto;margin:0;padding:7px 18px}
+.rules textarea{width:100%;box-sizing:border-box;min-height:340px;margin-top:18px;font:13px/1.5 ui-monospace,Consolas,monospace;background:var(--input);color:var(--text);border:0;border-radius:6px;padding:12px}
+.rules .preview{border-top:1px solid var(--line);margin-top:18px}
 
 dialog{border:0;border-radius:8px;background:var(--panel);color:var(--text);padding:22px 24px;width:min(360px,92vw)}
 dialog::backdrop{background:rgba(0,0,0,.6)}
@@ -272,7 +290,8 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
 /* veto */
 .veto{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
 .vmap{position:relative;border-radius:14px;background:var(--panel-2);padding:8px;display:flex;flex-direction:column;gap:8px;transition:opacity .3s,filter .3s,transform .2s var(--ease)}
-.vmap svg{display:block;width:100%;height:auto;border-radius:8px;background:#000}
+.vmap svg,.vmap img{display:block;width:100%;height:auto;border-radius:8px;background:#000}
+.vmap img{aspect-ratio:4/3;object-fit:contain}
 .vmap .vrow{display:flex;align-items:baseline;justify-content:space-between;gap:6px;padding:0 2px}
 .vmap .vrow small{color:var(--muted)}
 .vmap.banned{opacity:.45;filter:grayscale(1)}
@@ -290,7 +309,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
 .server.mine{border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok)}
 .server b{font-variant-numeric:tabular-nums;color:var(--muted)}
 .hero{position:relative;border-radius:14px;overflow:hidden;margin-bottom:14px}
-.hero svg{display:block;width:100%;height:auto;max-height:200px;object-fit:cover;background:#000}
+.hero svg,.hero img{display:block;width:100%;height:auto;max-height:200px;object-fit:cover;background:#000}
 .hero div{position:absolute;left:0;right:0;bottom:0;padding:24px 14px 10px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff}
 .hero b{font-family:var(--display);font-size:28px;display:block;line-height:1}
 .hero span{font-size:13px;opacity:.85}
@@ -336,7 +355,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
     <div class="auth" id="auth"></div>
     <div class="glance">
       <section><h2>Top of the ladder</h2><ol id="g-players"></ol></section>
-      <section><h2>Most likely maps</h2><ol id="g-maps"></ol></section>
+      <section><h2>Top-rated maps</h2><ol id="g-maps"></ol></section>
     </div>
   </section>
 
@@ -352,35 +371,13 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   </section>
 
   <section class="view" id="v-maps" hidden>
-    <p class="note">A map’s chance comes from the sum of everyone’s votes. Maps whose total falls to zero or below drop out of the rotation.</p>
+    <p class="note">Each match’s veto draws seven maps at random from this rotation, so every map is equally likely to come up. Rate the maps to tell the admins what you think.</p>
+    <div class="report map-admin" id="map-admin" hidden></div>
     <div class="maps" id="maps"></div>
   </section>
 
   <section class="view" id="v-rules" hidden>
-    <article class="rules">
-      <h2>Joining a pug</h2>
-      <p>Log in with Discord, then register your TagPro name and the position you play most.</p>
-      <h2>Teams and ratings</h2>
-      <ul>
-        <li>Hit <b>Find match</b>. When 8 players are queued, everyone gets 30 seconds to accept. Missing or declining the ready check locks you out of the queue: 5 minutes the first time, then 15 minutes, 1 hour and 24 hours if it keeps happening the same day.</li>
-        <li>Leaving a match or not showing up, once both captains report it, costs 25 Elo and a longer lockout, and the match is called off for everyone else.</li>
-        <li>If you wait 45 minutes without the queue filling, you're taken out of it. Just queue again.</li>
-        <li>The two highest-rated players captain. The lower-rated captain picks first, in 1-2-2-1 order (red, blue, blue, red, red, blue). Aim for two offense and two defense.</li>
-        <li>Five maps are drawn by vote chance. Captains take turns banning, blue first, until one is left. Then everyone votes on a server and the red captain shares the group link.</li>
-        <li>Ratings work like FACEIT: everyone starts at 1000 Elo, and your Elo sets your skill level from 1 to 10 (level 10 is 2001+).</li>
-        <li>A win between evenly matched teams is worth about 25 Elo. Beating a stronger team earns more and losing to a weaker one costs more. Everyone on a team moves by the same amount.</li>
-        <li>Your first 10 games of a season are placements: they count for a bit more, and your Elo and level stay hidden until they’re done. After that you appear on the Top 100.</li>
-      </ul>
-      <h2>Map voting</h2>
-      <p>Rate any map from −5 to 10 on the Maps page. Your vote counts until you change it, and the rotation updates as votes come in.</p>
-      <h2>Conduct</h2>
-      <ul>
-        <li>Leaving a game in progress counts as a loss.</li>
-        <li>No alt accounts in ranked queues.</li>
-        <li>Keep chat civil. Mods can mute or remove players.</li>
-      </ul>
-      <p class="draft">These rules are placeholders. Edit them to match how your league runs.</p>
-    </article>
+    <article class="rules" id="rules" aria-live="polite"><p class="draft">Loading the rules…</p></article>
   </section>
 
   <section class="view" id="v-report" hidden>
@@ -433,7 +430,9 @@ async function api(path, opts={}){
 }
 function badge(lv,size){const b=h("div",{class:"badge",style:`--tier:${tier(lv)}`,title:lv?`Level ${lv}`:"In placements"},lv?String(lv):"–");if(size){b.style.width=b.style.height=size+"px";b.style.fontSize=Math.round(size*.62)+"px"}return b}
 const tagEls = tags => (tags||[]).map(t=>h("span",{class:"tag"+(t==="OG"?" og":t.includes("★")?" champ":"")},t));
-const posLabel = p => p==="defense"?"Defense":"Offense";
+const posLabel = p => p==="defense"?"Defense":p==="flex"?"Flex":"Offense";
+const dotCls = p => "dot"+(p==="defense"?" d":p==="flex"?" f":"");
+const POSITIONS = [["offense","Offense"],["defense","Defense"],["flex","Flex (either)"]];
 
 let ME={logged_in:false}, BOARD=[], MAPS=[];
 
@@ -460,12 +459,39 @@ function renderAuth(){
     return;
   }
   if(!ME.player){
+    wrap.append(regForm("Register",`Signed in as ${ME.discord_name}. Pick the TagPro name you play under.`), logoutCard());
+    return;
+  }
+  const others=(ME.accounts||[]).filter(n=>n!==ME.player.name);
+  wrap.append(h("div",{class:"card wide"}, h("h2",{},ME.player.name),
+    h("p",{},`${posLabel(ME.player.position)}${ME.player.server?" on "+ME.player.server:""}. Signed in through Discord as ${ME.discord_name}.`),
+    h("label",{class:"possel"},"Position:",
+      h("select",{"aria-label":"Your position",onchange:e=>setPosition(e.target.value)},
+        ...POSITIONS.map(([v,l])=>h("option",{value:v,selected:ME.player.position===v},l)))),
+    others.length?h("p",{},"Your other accounts: ",...others.map((n,i)=>[i?" ":"",h("button",{class:"pill",onclick:()=>switchAccount(n),title:`Play as ${n}`},`Play as ${n}`)])):null,
+    h("button",{class:"btn",onclick:()=>openPlayer(ME.player.name)},"View my profile"),
+    h("button",{class:"btn",onclick:logout},"Log out")));
+  if((ME.accounts||[]).length < (ME.max_accounts||1)){
+    const alt=regForm("Add an alt account",`Register another TagPro name on this Discord login (up to ${ME.max_accounts}). Only one of your accounts can be in the queue at a time.`);
+    alt.hidden=true;
+    wrap.append(h("button",{class:"btn",onclick:e=>{alt.hidden=false;e.target.remove();}},"Add an alt account"),alt);
+  }
+}
+async function setPosition(position){
+  try{ await api("/api/me",{method:"PATCH",body:JSON.stringify({position})}); await refreshMe(); toast(`Position set to ${posLabel(position)}.`); }
+  catch(err){ alert(err.message); }
+}
+async function switchAccount(name){
+  try{ await api("/api/me/account",{method:"POST",body:JSON.stringify({name})}); await refreshMe(); renderMaps(); }
+  catch(err){ alert(err.message); }
+}
+function regForm(title,intro){
     const msg=h("div",{class:"formmsg","aria-live":"polite"});
-    const f=h("form",{class:"card wide"}, h("h2",{},"Register"),
-      h("p",{},`Signed in as ${ME.discord_name}. Pick the TagPro name you play under.`),
+    const f=h("form",{class:"card wide"}, h("h2",{},title),
+      h("p",{},intro),
       h("input",{name:"tagpro_name",placeholder:"TagPro name",required:true,maxlength:"24","aria-label":"TagPro name"}),
       h("input",{name:"reddit_name",placeholder:"Reddit name (optional)",maxlength:"24","aria-label":"Reddit name"}),
-      h("select",{name:"position",required:true,"aria-label":"Position"},h("option",{value:""},"Position"),h("option",{value:"offense"},"Offense"),h("option",{value:"defense"},"Defense")),
+      h("select",{name:"position",required:true,"aria-label":"Position"},h("option",{value:""},"Position"),...POSITIONS.map(([v,l])=>h("option",{value:v},l))),
       h("select",{name:"server","aria-label":"Server"},h("option",{value:""},"Server"),...["Centra","Chord","Diameter","Origin","Pi","Radius","Sphere"].map(s=>h("option",{},s))),
       h("button",{class:"btn"},"Register"), msg);
     f.addEventListener("submit",async e=>{
@@ -474,17 +500,11 @@ function renderAuth(){
       try{ await api("/api/register",{method:"POST",body:JSON.stringify({...fd,reddit_name:fd.reddit_name||null,server:fd.server||null})}); await refreshMe(); renderMaps(); }
       catch(err){ msg.textContent=err.message; msg.classList.add("err"); }
     });
-    wrap.append(f, logoutCard());
-    return;
-  }
-  wrap.append(h("div",{class:"card wide"}, h("h2",{},ME.player.name),
-    h("p",{},`${posLabel(ME.player.position)}${ME.player.server?" on "+ME.player.server:""}. Signed in through Discord as ${ME.discord_name}.`),
-    h("button",{class:"btn",onclick:()=>openPlayer(ME.player.name)},"View my profile"),
-    h("button",{class:"btn",onclick:logout},"Log out")));
+    return f;
 }
 function logoutCard(){return h("div",{class:"card"},h("h2",{},"Wrong account?"),h("button",{class:"btn",onclick:logout},"Log out"))}
-async function logout(){ try{await api("/auth/logout",{method:"POST"})}catch{} ME={logged_in:false}; renderAuth(); renderMaps(); refreshPlay(); $("#nav-report").hidden=true; if(current==="report")go("home"); }
-async function refreshMe(){ ME=await api("/api/me"); $("#nav-report").hidden=!ME.is_admin; renderAuth(); if(PLAY){ renderDock(); refreshPlay(); } }
+async function logout(){ try{await api("/auth/logout",{method:"POST"})}catch{} ME={logged_in:false}; renderAuth(); renderMaps(); refreshPlay(); $("#nav-report").hidden=true; renderRules(); renderMapAdmin(); if(current==="report")go("home"); }
+async function refreshMe(){ ME=await api("/api/me"); $("#nav-report").hidden=!ME.is_admin; renderAuth(); renderRules(); renderMapAdmin(); if(PLAY){ renderDock(); refreshPlay(); } }
 
 /* ---------- leaderboard ---------- */
 function renderBoard(){
@@ -495,7 +515,7 @@ function renderBoard(){
     const col=h("div",{class:"col"});
     slice.forEach(p=>col.append(h("button",{class:"row","data-name":p.name.toLowerCase(),onclick:()=>openPlayer(p.name),"aria-label":`${p.name}, rank ${p.rank}, level ${p.level}, ${p.elo} Elo`},
       h("span",{class:"rank"},p.rank+"."), badge(p.level),
-      h("span",{class:"who"}, h("span",{class:"name"},p.name,h("i",{class:"dot"+(p.position==="defense"?" d":""),title:posLabel(p.position)})), h("span",{class:"tags"},tagEls(p.tags))),
+      h("span",{class:"who"}, h("span",{class:"name"},p.name,h("i",{class:dotCls(p.position),title:posLabel(p.position)})), h("span",{class:"tags"},tagEls(p.tags))),
       h("span",{class:"elo"},String(p.elo))
     )));
     board.append(col);
@@ -533,6 +553,12 @@ $("#search").addEventListener("input",e=>{
 /* ---------- maps ---------- */
 function seeded(str){let s=0;for(const ch of str)s=(s*31+ch.charCodeAt(0))>>>0;return()=>((s=(s*1664525+1013904223)>>>0)/4294967296)}
 let svgN=0; // pattern ids must be unique: a copy inside a hidden view would blank out the others
+// TagPro's own preview image; maps it doesn't host fall back to a drawn layout
+function mapImg(name){
+  const img=h("img",{src:"https://static.koalabeast.com/images/maps/"+encodeURIComponent(name)+".png",alt:`${name} map`,loading:"lazy"});
+  img.addEventListener("error",()=>img.outerHTML=mapSVG(name),{once:true});
+  return img;
+}
 function mapSVG(name){
   const rnd=seeded(name), W=40, H=22, id="g"+name.replace(/\W/g,"")+(++svgN);
   const blobs=Array.from({length:4+Math.floor(rnd()*3)},()=>({x:4+rnd()*15,y:3+rnd()*16,rx:4+rnd()*6,ry:3+rnd()*5}));
@@ -556,7 +582,7 @@ function renderMaps(){
   const canVote = ME.logged_in && ME.player;
   for(const m of MAPS){
     const card=h("article",{class:"map"});
-    card.insertAdjacentHTML("beforeend",mapSVG(m.name));
+    card.append(mapImg(m.name));
     const list=h("div",{class:"votes",tabindex:"0","aria-label":`Votes for ${m.name}`});
     if(!m.votes.length) list.append(h("div",{class:"hint"},"No votes yet."));
     m.votes.forEach(v=>list.append(h("div",{class:ME.player&&v.voter===ME.player.name?"me":null},v.voter+": ",h("b",{class:v.score>=0?"p":"n"},minus(v.score)))));
@@ -568,11 +594,46 @@ function renderMaps(){
       try{ await api(`/api/maps/${m.id}/vote`,{method:"PUT",body:JSON.stringify({score:e.target.value===""?null:+e.target.value})}); MAPS=await api("/api/maps"); renderMaps(); renderGlance(); }
       catch(err){ alert(err.message); sel.disabled=false; }
     });
-    card.append(h("h3",{},m.name),h("div",{class:"chance"},`Chance: ${m.chance.toFixed(2)}%`),
-      h("div",{class:"bar"},h("i",{style:`width:${Math.min(100,m.chance*5)}%`})), list,
+    card.append(h("h3",{},m.name),h("div",{class:"chance"},`In ${Math.round(m.chance)}% of vetoes · rating ${minus(m.votes.reduce((s,v)=>s+v.score,0))}`),
+      h("div",{class:"bar"},h("i",{style:`width:${Math.min(100,m.chance)}%`})), list,
       h("label",{class:"myvote"},"Your vote",sel));
     wrap.append(card);
   }
+}
+
+/* ---------- map pool editor (admins) ---------- */
+let MAP_ADMIN_OPEN=false;
+async function renderMapAdmin(){
+  const box=$("#map-admin");
+  if(!ME.is_admin){ box.hidden=true; box.replaceChildren(); return; }
+  let all; try{ all=await api("/api/admin/maps"); }catch(err){ box.hidden=false; box.replaceChildren(h("p",{class:"err"},err.message)); return; }
+  const msg=h("span",{class:"formmsg","aria-live":"polite"});
+  const act=async(fn,ok)=>{ msg.textContent="Saving…"; msg.classList.remove("err");
+    try{ await fn(); MAPS=await api("/api/maps"); renderMaps(); renderGlance(); await renderMapAdmin(); if(ok) toast(ok); }
+    catch(err){ msg.textContent=err.message; msg.classList.add("err"); } };
+  const send=(path,method,body)=>api("/api/admin/maps"+path,{method,body:body&&JSON.stringify(body)});
+  const rows=all.map(m=>{
+    const name=h("input",{type:"text",value:m.name,maxlength:"48","aria-label":`Name of ${m.name}`});
+    const rename=()=>{ const v=name.value.trim(); if(v&&v!==m.name) act(()=>send(`/${m.id}`,"PATCH",{name:v}),`Renamed to ${v}.`); else name.value=m.name; };
+    name.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); rename(); } });
+    name.addEventListener("change",rename);
+    const on=h("input",{type:"checkbox",checked:m.active,onchange:e=>act(()=>send(`/${m.id}`,"PATCH",{active:e.target.checked}))});
+    return h("div",{class:"row"+(m.active?"":" off")}, name,
+      h("label",{},on," In rotation"),
+      h("span",{class:"sub"},`${m.votes} vote${m.votes===1?"":"s"}, total ${minus(m.total)}`),
+      h("button",{class:"btn",disabled:!m.votes,onclick:()=>{ if(confirm(`Clear all ${m.votes} votes on ${m.name}?`)) act(()=>send(`/${m.id}/votes`,"DELETE"),`Votes on ${m.name} cleared.`); }},"Clear votes"),
+      h("button",{class:"btn",disabled:m.in_use,title:m.in_use?"Played in a match, so it can only be taken out of rotation":null,
+        onclick:()=>{ if(confirm(`Delete ${m.name} and its votes?`)) act(()=>send(`/${m.id}`,"DELETE"),`${m.name} deleted.`); }},"Delete"));
+  });
+  const add=h("input",{type:"text",placeholder:"Map name, exactly as TagPro spells it",maxlength:"48","aria-label":"New map name"});
+  const addForm=h("form",{class:"tools",onsubmit:e=>{ e.preventDefault(); const v=add.value.trim(); if(v) act(()=>send("","POST",{name:v}),`${v} added.`); }},
+    add, h("button",{class:"btn"},"Add map"),
+    h("button",{class:"btn",type:"button",onclick:()=>{ if(confirm("Make the rotation the 12 current MLTP majors maps? Other maps are taken out of rotation, not deleted.")) act(()=>send("/use-mltp-majors","POST"),"Rotation set to the MLTP majors."); }},"Use MLTP majors"));
+  const det=h("details",{open:MAP_ADMIN_OPEN,ontoggle:e=>MAP_ADMIN_OPEN=e.target.open},
+    h("summary",{},`Manage maps (${all.filter(m=>m.active).length} in rotation)`),
+    h("p",{class:"note",style:"margin:8px 0 0;text-align:left"},"Changes apply to the next map veto. The veto draws seven maps at random from those in rotation, every map equally likely. Votes don't affect the draw."),
+    addForm, ...rows, msg);
+  box.replaceChildren(det); box.hidden=false;
 }
 
 /* ---------- home glance ---------- */
@@ -581,7 +642,8 @@ function renderGlance(){
   BOARD.slice(0,5).forEach(p=>gp.append(h("li",{},badge(p.level,32),h("span",{},p.name),h("span",{class:"sub"},"#"+p.rank))));
   if(!BOARD.length) gp.append(h("li",{class:"sub"},"Nobody ranked yet."));
   const gm=$("#g-maps"); gm.replaceChildren();
-  [...MAPS].sort((a,b)=>b.chance-a.chance).slice(0,5).forEach(m=>gm.append(h("li",{},h("span",{},m.name),h("span",{class:"sub"},m.chance.toFixed(1)+"%"))));
+  const total=m=>m.votes.reduce((s,v)=>s+v.score,0);
+  [...MAPS].sort((a,b)=>total(b)-total(a)).slice(0,5).forEach(m=>gm.append(h("li",{},h("span",{},m.name),h("span",{class:"sub"},minus(total(m))))));
 }
 
 /* ---------- report a match (admins) ---------- */
@@ -616,7 +678,7 @@ const PLAYED=["in_progress","disputed","finished"]; // game started: the dock go
 const STEP={ready_check:"Match found",drafting:"Captains draft",map_veto:"Map veto",server_vote:"Server vote",awaiting_group:"Match ready",in_progress:"Match live",disputed:"Score disputed",finished:"Match over"};
 const nowS=()=>Date.now()/1000+SKEW;
 const teamName=t=>t==="red"?"Red":"Blue";
-const dot=p=>h("i",{class:"dot"+(p.position==="defense"?" d":""),title:posLabel(p.position)});
+const dot=p=>h("i",{class:dotCls(p.position),title:posLabel(p.position)});
 const captain=(L,t)=>L.players.find(p=>p.is_captain&&p.team===t);
 const lobbyKey=L=>L.id+":"+L.status;
 const dismissed=new Set((()=>{try{return JSON.parse(localStorage.getItem("rp-dismissed")||"[]")}catch{return[]}})());
@@ -771,8 +833,8 @@ function viewDraft(L){
   const size=L.players.length/2;
   const team=t=>{
     const ps=L.players.filter(p=>p.team===t).sort((a,b)=>(b.is_captain-a.is_captain)||(a.pick_no-b.pick_no));
-    const o=ps.filter(p=>p.position==="offense").length;
-    return h("section",{class:"team "+t,"aria-label":teamName(t)+" team"},h("h3",{},teamName(t),h("small",{},`${o} O · ${ps.length-o} D`)),
+    const o=ps.filter(p=>p.position==="offense").length, d=ps.filter(p=>p.position==="defense").length, f=ps.length-o-d;
+    return h("section",{class:"team "+t,"aria-label":teamName(t)+" team"},h("h3",{},teamName(t),h("small",{},`${o} O · ${d} D`+(f?` · ${f} Flex`:""))),
       ...ps.map(chip),...Array.from({length:size-ps.length},()=>h("div",{class:"chip empty"},"Open slot")));
   };
   const pool=L.players.filter(p=>!p.team).sort((a,b)=>b.rating-a.rating);
@@ -792,16 +854,16 @@ function viewDraft(L){
 
 function viewVeto(L){
   const mine=!!(L.me&&L.me.my_turn), cap=captain(L,L.turn), left=L.map_pool.filter(m=>!m.banned_by).length;
-  const chance=id=>{const m=MAPS.find(x=>x.id===id);return m?`${m.chance.toFixed(1)}%`:""};
+
   return [
     popHead(L,"Map veto",mine?`Your ban. ${left-1} more ban${left===2?"":"s"} until the map is locked in.`:`${cap?cap.name:"The captain"} (${teamName(L.turn)}) is banning a map…`,{timer:true,go:mine}),
     timerBar(L),
     h("div",{class:"pop-body"},
-      h("p",{class:"muted",style:"margin:0 0 12px;font-size:13px"},"Maps were drawn by community vote chance. Captains take turns banning, blue first. The last map standing is played."),
+      h("p",{class:"muted",style:"margin:0 0 12px;font-size:13px"},"Seven maps were drawn at random from the rotation. Captains take turns banning, blue first. The last map standing is played."),
       h("div",{class:"veto"},...L.map_pool.map(m=>{
         const card=h("div",{class:"vmap"+(m.banned_by?" banned "+m.banned_by:mine?" can":"")});
-        card.insertAdjacentHTML("beforeend",mapSVG(m.name));
-        card.append(h("div",{class:"vrow"},h("b",{},m.name),h("small",{},chance(m.id))),
+        card.append(mapImg(m.name));
+        card.append(h("div",{class:"vrow"},h("b",{},m.name)),
           m.banned_by ? h("span",{class:"stamp"},`Banned by ${teamName(m.banned_by)}`)
                       : h("button",{class:"pill ban",disabled:!mine,onclick:()=>act(L,"ban",{map_id:m.id}),"aria-label":`Ban ${m.name}`},"Ban"));
         return card;
@@ -821,7 +883,7 @@ function viewServer(L){
 
 function viewMatch(L){
   const red=captain(L,"red"), meRed=!!(L.me&&L.me.is_captain&&L.me.team==="red");
-  const hero=h("div",{class:"hero"}); hero.insertAdjacentHTML("beforeend",mapSVG(L.map||"?"));
+  const hero=h("div",{class:"hero"}); if(L.map) hero.append(mapImg(L.map)); else hero.insertAdjacentHTML("beforeend",mapSVG("?"));
   hero.append(h("div",{},h("b",{},L.map||"Map not set"),h("span",{},L.server?`Server: ${L.server}`:"")));
   const team=t=>h("section",{class:"team "+t},h("h3",{},teamName(t)),...L.players.filter(p=>p.team===t).sort((a,b)=>b.is_captain-a.is_captain).map(chip));
   const group=h("div",{class:"group"});
@@ -908,6 +970,59 @@ async function renderDisputes(){
   }));
 }
 
+/* ---------- rules (Markdown from /api/rules; admins can edit) ---------- */
+let RULES=null;
+// Small Markdown subset built as DOM nodes, so no raw HTML gets through:
+// #/##/### headings, - or * bullets, 1. numbered lists, **bold**, *italic*, [text](https://link)
+function mdInline(s){
+  const out=[], re=/\*\*(.+?)\*\*|\*(.+?)\*|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g; let i=0, m;
+  while((m=re.exec(s))){ if(m.index>i) out.push(s.slice(i,m.index));
+    out.push(m[1]!=null?h("b",{},...mdInline(m[1])):m[2]!=null?h("i",{},...mdInline(m[2])):h("a",{href:m[4],target:"_blank",rel:"noopener"},m[3]));
+    i=re.lastIndex; }
+  if(i<s.length) out.push(s.slice(i));
+  return out;
+}
+function mdRender(src){
+  const nodes=[]; let para=[], list=null;
+  const flush=()=>{ if(para.length){ nodes.push(h("p",{},...mdInline(para.join(" ")))); para=[]; } };
+  for(const raw of src.replace(/\r/g,"").split("\n")){
+    const line=raw.trim(), hd=line.match(/^(#{1,3})\s+(.*)$/), li=line.match(/^([-*]|\d+\.)\s+(.*)$/);
+    if(!line){ flush(); list=null; continue; }
+    if(hd){ flush(); list=null; nodes.push(h(hd[1].length===3?"h3":"h2",{},...mdInline(hd[2]))); continue; }
+    if(li){ flush(); const tag=/\d/.test(li[1])?"ol":"ul";
+      if(!list||list.tagName.toLowerCase()!==tag){ list=h(tag); nodes.push(list); }
+      list.append(h("li",{},...mdInline(li[2]))); continue; }
+    if(list&&raw.match(/^\s+/)){ list.lastChild.append(" ",...mdInline(line)); continue; }
+    list=null; para.push(line);
+  }
+  flush(); return nodes;
+}
+async function loadRules(){
+  try{ RULES=await api("/api/rules"); }catch(err){ $("#rules").replaceChildren(h("p",{class:"err"},err.message)); return; }
+  renderRules();
+}
+function renderRules(){
+  const box=$("#rules"); if(!RULES) return;
+  box.replaceChildren(...mdRender(RULES.markdown));
+  if(ME.is_admin){
+    const when=RULES.updated_at?"Last edited "+new Date(RULES.updated_at).toLocaleString()+".":"These are the starting rules. Nobody has edited them yet.";
+    box.append(h("div",{class:"tools"},h("button",{class:"btn",onclick:editRules},"Edit rules"),h("span",{class:"draft",style:"margin:0"},when)));
+  }
+}
+function editRules(){
+  const box=$("#rules"), msg=h("span",{class:"formmsg","aria-live":"polite"});
+  const ta=h("textarea",{"aria-label":"Rules in Markdown",spellcheck:"true"}); ta.value=RULES.markdown;
+  const preview=h("div",{class:"preview"},...mdRender(ta.value));
+  ta.addEventListener("input",()=>preview.replaceChildren(...mdRender(ta.value)));
+  const save=h("button",{class:"btn",onclick:async()=>{ msg.textContent="Saving…"; save.disabled=true;
+    try{ RULES=await api("/api/rules",{method:"PUT",body:JSON.stringify({markdown:ta.value})}); renderRules(); toast("Rules saved."); }
+    catch(err){ msg.textContent=err.message; msg.classList.add("err"); save.disabled=false; }}},"Save");
+  box.replaceChildren(h("h2",{},"Edit rules"),
+    h("p",{class:"draft"},"Write in Markdown: ## for a heading, - for a bullet, **bold**, *italics*, [text](https://link). A blank line starts a new paragraph. The preview below updates as you type."),
+    ta, h("div",{class:"tools"},save,h("button",{class:"btn",onclick:renderRules},"Cancel"),msg), preview);
+  ta.focus();
+}
+
 /* ---------- routing ---------- */
 const VIEWS=["home","top100","maps","rules","report"]; let current="home";
 function go(v,push=true){
@@ -929,7 +1044,7 @@ window.addEventListener("hashchange",()=>go(location.hash.slice(1),false));
     const [season] = await Promise.all([api("/api/season"), refreshMe()]);
     renderSeason(season);
     [BOARD,MAPS] = await Promise.all([api("/api/leaderboard"),api("/api/maps")]);
-    renderBoard(); renderMaps(); renderGlance();
+    renderBoard(); renderMaps(); renderGlance(); loadRules();
     await refreshPlay(); connectLive();
   }catch(err){
     $("main").prepend(h("p",{class:"empty err"},err.message));

@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, play, reporting
+from . import auth, maps_admin, pages, play, reporting
 from .db import Base, Map, MapVote, Match, MatchPlayer, Player, Rating, Season, engine, get_db
 from .rating import LEVELS, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, rating_out, record_match
 
@@ -25,9 +25,12 @@ app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax"
 app.include_router(auth.router)
 app.include_router(play.router)
 app.include_router(reporting.router)
+app.include_router(pages.router)
+app.include_router(maps_admin.router)
 Base.metadata.create_all(engine)
 
-Position = Literal["offense", "defense"]
+Position = Literal["offense", "defense"]               # what someone played in a given match
+Preference = Literal["offense", "defense", "flex"]   # what a player prefers; they can change it any time
 Team = Literal["red", "blue"]
 
 
@@ -60,14 +63,16 @@ def me(request: Request, db: Session = Depends(get_db)):
     if not did:
         return {"logged_in": False, "discord_configured": bool(auth.CLIENT_ID)}
     p = auth.current_player(request, db)
+    mine = auth.accounts(db, did)
     return {"logged_in": True, "discord_name": request.session.get("discord_name"),
-            "player": player_out(p) if p else None, "is_admin": auth.is_admin(did, p)}
+            "player": player_out(p) if p else None, "is_admin": auth.is_admin(did, p),
+            "accounts": [a.tagpro_name for a in mine], "max_accounts": auth.MAX_ACCOUNTS}
 
 
 class RegisterIn(BaseModel):
     tagpro_name: str = Field(min_length=1, max_length=24)
     reddit_name: str | None = Field(default=None, max_length=24)
-    position: Position
+    position: Preference
     server: str | None = Field(default=None, max_length=24)
 
 
@@ -76,8 +81,9 @@ def register(body: RegisterIn, request: Request, db: Session = Depends(get_db)):
     did = request.session.get("discord_id")
     if not did:
         raise HTTPException(401, "Log in with Discord first.")
-    if auth.current_player(request, db):
-        raise HTTPException(409, "This Discord account is already registered.")
+    if len(auth.accounts(db, did)) >= auth.MAX_ACCOUNTS:
+        raise HTTPException(409, f"You already have {auth.MAX_ACCOUNTS} TagPro names on this Discord account, "
+                                 "which is the most allowed.")
     name = body.tagpro_name.strip()
     if find_player(db, name):
         raise HTTPException(409, f"“{name}” is already taken. If it’s yours, ask an admin to link it to your Discord.")
@@ -85,6 +91,44 @@ def register(body: RegisterIn, request: Request, db: Session = Depends(get_db)):
                position=body.position, server=body.server or None, tags=[])
     db.add(p)
     db.commit()
+    request.session["player_id"] = p.id  # play as the new name straight away
+    return player_out(p)
+
+
+class ProfileIn(BaseModel):
+    position: Preference | None = None
+    server: str | None = Field(default=None, max_length=24)
+    reddit_name: str | None = Field(default=None, max_length=24)
+
+
+@app.patch("/api/me")
+def edit_profile(body: ProfileIn, p: Player = Depends(auth.require_player), db: Session = Depends(get_db)):
+    """Change your position (offense, defense or flex), server or Reddit name. Only fields you send change;
+    send an empty string to clear server or Reddit name. Applies to the account you're playing as."""
+    sent = body.model_fields_set
+    if "position" in sent and body.position:
+        p.position = body.position
+    if "server" in sent:
+        p.server = (body.server or "").strip() or None
+    if "reddit_name" in sent:
+        p.reddit_name = (body.reddit_name or "").strip() or None
+    db.commit()
+    play.bump()  # open lobbies show the new position
+    return player_out(p)
+
+
+class AccountIn(BaseModel):
+    name: str = Field(min_length=1, max_length=24)
+
+
+@app.post("/api/me/account")
+def switch_account(body: AccountIn, request: Request, db: Session = Depends(get_db)):
+    """Switch which of your TagPro names (main or alt) you're playing as."""
+    p = next((a for a in auth.accounts(db, request.session.get("discord_id"))
+              if a.tagpro_name.lower() == body.name.strip().lower()), None)
+    if not p:
+        raise HTTPException(404, f"“{body.name}” isn’t one of your accounts.")
+    request.session["player_id"] = p.id
     return player_out(p)
 
 
@@ -148,9 +192,8 @@ def maps(request: Request, db: Session = Depends(get_db)):
         votes[v.map_id].append({"voter": pname or v.voter_label or "?", "score": v.score})
         if me_p and v.player_id == me_p.id:
             mine[v.map_id] = v.score
-    totals = {m.id: max(0, sum(x["score"] for x in votes[m.id])) for m in all_maps}
-    grand = sum(totals.values()) or 1
-    return [{"id": m.id, "name": m.name, "chance": round(totals[m.id] / grand * 100, 2),
+    chance = round(play.veto_chance(len(all_maps)), 2)  # the veto draw ignores votes
+    return [{"id": m.id, "name": m.name, "chance": chance,
              "votes": votes[m.id], "my_vote": mine.get(m.id)} for m in all_maps]
 
 
