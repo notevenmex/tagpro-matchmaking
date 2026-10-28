@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from . import auth
 from .db import (GroupJob, Lobby, LobbyPlayer, Map, MapVote, Player, QueueBan, QueueEntry, Rating, Season,
                  SessionLocal, get_db)
-from .rating import START_ELO, points
+from .rating import START_ELO, level
 
 log = logging.getLogger("rankedpugs")
 
@@ -64,8 +64,7 @@ def _season(db: Session) -> Season:
 
 
 def _main_elo(db: Session, p: Player, season_id: int) -> float:
-    elo = db.scalar(select(Rating.elo).where(Rating.player_id == p.id, Rating.season_id == season_id,
-                                            Rating.position == p.position))
+    elo = db.scalar(select(Rating.elo).where(Rating.player_id == p.id, Rating.season_id == season_id))
     return START_ELO if elo is None else elo
 
 
@@ -347,6 +346,7 @@ async def ws(websocket: WebSocket):
 
 # ---------- views ----------
 def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
+    from .reporting import score_view
     lps = _lobby_players(db, lobby)
     mine = next((lp for lp, p in lps if me and p.id == me.id), None)
     t = turn(db, lobby)
@@ -355,13 +355,14 @@ def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
     return {
         "id": lobby.id, "status": lobby.status, "deadline": lobby.deadline, "note": lobby.note,
         "turn": t, "pick_order": PICK_ORDER, "step_seconds": STEP_SECONDS.get(lobby.status),
-        "players": [{"name": p.tagpro_name, "position": p.position, "rating": points(lp.elo), "tags": p.tags or [],
+        "players": [{"name": p.tagpro_name, "position": p.position, "rating": level(lp.elo), "elo": round(lp.elo), "tags": p.tags or [],
                      "accepted": lp.accepted, "team": lp.team, "is_captain": lp.is_captain, "pick_no": lp.pick_no}
                     for lp, p in lps],
         "map_pool": lobby.map_pool, "map": map_name,
         "servers": [{"name": s, "votes": votes[s]} for s in SERVERS], "server": lobby.server,
         "group_link": lobby.group_link if mine else None,
         "group_bot": db.scalar(select(GroupJob.status).where(GroupJob.lobby_id == lobby.id)),  # see autogroup.py
+        "score": score_view(db, lobby, me),
         "me": None if not mine else {
             "team": mine.team, "is_captain": mine.is_captain, "accepted": mine.accepted,
             "server_vote": mine.server_vote, "my_turn": bool(mine.is_captain and t == mine.team)},
@@ -373,7 +374,7 @@ def _my_lobby(db: Session, p: Player) -> Lobby | None:
     t = clock()
     lobby = db.scalar(select(Lobby).join(LobbyPlayer, LobbyPlayer.lobby_id == Lobby.id)
                       .where(LobbyPlayer.player_id == p.id).order_by(Lobby.id.desc()).limit(1))
-    if not lobby or (lobby.status == "cancelled" and (lobby.deadline or 0) < t - 60):
+    if not lobby or (lobby.status in ("cancelled", "finished") and (lobby.deadline or 0) < t - 60):
         return None
     return lobby
 
@@ -386,13 +387,15 @@ def play_state(request: Request, db: Session = Depends(get_db)):
                        .order_by(QueueEntry.joined_at)).all()
     ban = db.scalar(select(QueueBan.until).where(QueueBan.player_id == me.id, QueueBan.until > t)) if me else None
     lobby = _my_lobby(db, me) if me else None
-    live = db.scalars(select(Lobby).where(Lobby.status.in_(PRE_GAME + ("in_progress",)))
+    live = db.scalars(select(Lobby).where(Lobby.status.in_(PRE_GAME + ("in_progress", "disputed")))
                       .order_by(Lobby.id.desc()).limit(10)).all()
     mine = next((e for e, _ in queue if me and e.player_id == me.id), None)
+    from .reporting import queue_block
     return {"now": t, "size": QUEUE_SIZE, "dev": auth.DEV_LOGIN,
             "queue": [name for _, name in queue],
             "in_queue": mine is not None, "queued_at": mine.joined_at if mine else None,
             "banned_until": ban,
+            "queue_block": queue_block(db, me.id) if me else None,  # captains waiting on a verified score
             "lobby": lobby_view(db, lobby, me) if lobby else None,
             "live": [{"id": x.id, "status": x.status} for x in live]}
 
@@ -438,6 +441,10 @@ def join_queue(p: Player = Depends(auth.require_player), db: Session = Depends(g
             raise HTTPException(403, f"You missed a ready check. You can queue again in {int(ban - t) // 60 + 1} min.")
         if _pregame_lobby(db, p.id):
             raise HTTPException(409, "You're already in a match.")
+        from .reporting import queue_block
+        blocked = queue_block(db, p.id)  # captains wait for a verified score; everyone else can go
+        if blocked:
+            raise HTTPException(409, blocked)
         if not db.scalar(select(QueueEntry).where(QueueEntry.player_id == p.id)):
             db.add(QueueEntry(player_id=p.id, joined_at=t))
             db.flush()
@@ -568,7 +575,7 @@ def cancel(lobby_id: int, admin_id: str = Depends(auth.require_admin), db: Sessi
         lobby = db.get(Lobby, lobby_id)
         if not lobby:
             raise HTTPException(404, "No such match.")
-        if lobby.status == "cancelled":
-            raise HTTPException(409, "Already cancelled.")
+        if lobby.status in ("cancelled", "finished"):
+            raise HTTPException(409, f"Already {lobby.status}.")
         lobby.status, lobby.deadline, lobby.note = "cancelled", clock(), "Cancelled by an admin."
         return _done(db)

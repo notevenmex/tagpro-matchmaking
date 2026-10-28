@@ -1,24 +1,4 @@
-import os
-import tempfile
-
-os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(tempfile.mkdtemp(), "test.db")
-os.environ["SESSION_SECRET"] = "test-secret"
-os.environ["DEV_LOGIN"] = "1"
-os.environ["ADMIN_DISCORD_IDS"] = "admin-1"
-
-from fastapi.testclient import TestClient  # noqa: E402
-
-from app import seed  # noqa: E402
-from app.main import app  # noqa: E402
-
-seed.run()
-
-
-def client(discord_id=None, name="Tester"):
-    c = TestClient(app)
-    if discord_id:
-        c.get("/auth/dev-login", params={"discord_id": discord_id, "name": name}, follow_redirects=False)
-    return c
+from conftest import client
 
 
 def test_public_pages():
@@ -26,7 +6,8 @@ def test_public_pages():
     assert c.get("/").status_code == 200
     assert c.get("/api/season").json()["number"] == 4
     board = c.get("/api/leaderboard").json()
-    assert board[0]["name"] == "Warriors" and board[0]["rating"] == 43
+    assert board[0]["name"] == "Warriors" and board[0]["elo"] == 2023 and board[0]["level"] == 10
+    assert c.get("/api/levels").json()["start_elo"] == 1000
     maps = c.get("/api/maps").json()
     assert len(maps) == 10 and abs(sum(m["chance"] for m in maps) - 100) < 0.1
 
@@ -53,10 +34,13 @@ def test_register_vote_and_report():
     res = a.post("/api/matches", json=body)
     assert res.status_code == 201, res.text
     ch = {c["name"]: c for c in res.json()["changes"]}
-    assert ch["NewGuy"]["after"] > ch["NewGuy"]["before"]
-    assert ch["Warriors"]["after"] < ch["Warriors"]["before"]
+    assert ch["NewGuy"]["before"] == 1000 and ch["NewGuy"]["change"] > 25  # underdog win, in placements
+    assert ch["Warriors"]["change"] < 0
+    assert ch["Spud"]["change"] < ch["NewGuy"]["change"]  # Spud is placed, so he moves the normal amount
     detail = u.get("/api/players/NewGuy").json()
-    assert detail["recent"][0]["won"] is True and detail["ratings"][0]["games"] == 1
+    assert detail["recent"][0]["won"] is True and detail["recent"][0]["change"] is None  # hidden in placements
+    assert detail["rating"] == {"elo": None, "level": None, "games": 1, "wins": 1, "placements_left": 9}
+    assert u.get("/api/players/Spud").json()["recent"][0]["change"] == ch["Spud"]["change"]
 
     bad = dict(body, players=body["players"] + [{"tagpro_name": "Nobody", "team": "red", "position": "offense"}])
     assert "Nobody" in a.post("/api/matches", json=bad).json()["detail"]
