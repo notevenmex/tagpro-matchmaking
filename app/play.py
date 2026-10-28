@@ -277,11 +277,17 @@ def _bot_moves(db: Session, t: float) -> bool:
 # ---------- live updates ----------
 _version = 0
 _sockets: set[WebSocket] = set()
+_chat_pings: set[int] = set()  # lobbies with new chat since the last loop (chat.py)
 
 
 def bump():
     global _version
     _version += 1
+
+
+def chat_ping(lobby_id: int):
+    """Tell every open page that a lobby's chat changed; pages showing it then re-fetch the chat."""
+    _chat_pings.add(lobby_id)
 
 
 def _tick_once() -> bool:
@@ -300,11 +306,16 @@ async def _loop():
                 bump()
         except Exception:
             log.exception("matchmaking tick failed")
+        msgs = []
         if _version != sent:
             sent = _version
+            msgs.append({"type": "update", "v": sent})
+        while _chat_pings:
+            msgs.append({"type": "chat", "lobby": _chat_pings.pop()})
+        for msg in msgs:
             for ws in list(_sockets):
                 try:
-                    await ws.send_json({"type": "update", "v": sent})
+                    await ws.send_json(msg)
                 except Exception:
                     _sockets.discard(ws)
         await asyncio.sleep(0.5)
@@ -323,7 +334,8 @@ async def lifespan(app: FastAPI):
 
 @router.websocket("/ws")
 async def ws(websocket: WebSocket):
-    """Pushes {"type": "update"} whenever matchmaking state changes; clients then re-fetch /api/play."""
+    """Pushes {"type": "update"} whenever matchmaking state changes (clients then re-fetch /api/play), and
+    {"type": "chat", "lobby": id} when a lobby's chat changes (clients showing it re-fetch its chat)."""
     await websocket.accept()
     _sockets.add(websocket)
     try:

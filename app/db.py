@@ -311,6 +311,32 @@ class VoiceRoom(Base):
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+
+class ChatMessage(Base):
+    """One line of a match's lobby chat (see chat.py). channel "all" is for all 8 players; "red" or
+    "blue" is team chat. Kept after the match so the Post Match page and admins can read it back.
+    hidden is set by an admin: hidden lines only show up for admins."""
+    __tablename__ = "chat_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lobby_id: Mapped[int] = mapped_column(ForeignKey("lobbies.id"), index=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
+    channel: Mapped[str] = mapped_column(String(4))  # all | red | blue
+    body: Mapped[str] = mapped_column(String(300))
+    sent_at: Mapped[float] = mapped_column(Float)
+    as_admin: Mapped[bool] = mapped_column(Boolean, default=False)  # an admin who isn't in the match
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False)
+    hidden_by: Mapped[str | None] = mapped_column(String(32), nullable=True)  # admin's Discord id
+
+
+class ChatMute(Base):
+    """An admin's mute on a Discord login: none of its accounts can send lobby chat until then."""
+    __tablename__ = "chat_mutes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    discord_id: Mapped[str] = mapped_column(String(32), unique=True)
+    until: Mapped[float] = mapped_column(Float)
+    reason: Mapped[str] = mapped_column(String(200), default="")
+    muted_by: Mapped[str] = mapped_column(String(32))
+
 def get_db():
     db = SessionLocal()
     try:
