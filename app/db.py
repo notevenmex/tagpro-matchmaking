@@ -147,6 +147,21 @@ class LobbyPlayer(Base):
     server_vote: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
+class GroupJob(Base):
+    """The bot's attempt to create a lobby's TagPro group and DM the captains.
+
+    status: running -> done, or retry (until next_try) -> ... -> failed (captains make the group by hand).
+    """
+    __tablename__ = "group_jobs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lobby_id: Mapped[int] = mapped_column(ForeignKey("lobbies.id"), unique=True)
+    status: Mapped[str] = mapped_column(String(8), default="running")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_try: Mapped[float] = mapped_column(Float, default=0)
+    error: Mapped[str] = mapped_column(String(300), default="")
+    dms_sent: Mapped[int] = mapped_column(Integer, default=0)
+
+
 def get_db():
     db = SessionLocal()
     try:
