@@ -1,4 +1,4 @@
-"""Load a starting season, the map pool, and the players visible in the June 2017 archive.
+"""Load a starting season, the MLTP majors map pool (no votes yet), and the players visible in the June 2017 archive.
 
 Run once:  python -m app.seed
 Archived players get a FACEIT-style Elo converted from their old point total (see
@@ -7,7 +7,8 @@ later by setting players.discord_id.
 """
 from sqlalchemy import select
 
-from .db import Base, Map, MapVote, Player, Rating, SessionLocal, Season, engine
+from .db import Base, Map, Player, Rating, SessionLocal, Season, engine
+from .maps_admin import MLTP_MAJORS
 from .rating import PLACEMENT_GAMES
 
 ARCHIVE_PLAYERS = [  # name, points, position, tags
@@ -34,19 +35,6 @@ def elo_from_points(pts: int) -> int:
     player here), and each point is worth 31 Elo, so the 2017 #3 (43) lands just inside level 10."""
     return 1000 + (pts - 10) * 31
 
-ARCHIVE_VOTES = {
-    "Bombing Run": "i’m high:-5|Spud:10|LEBRON*JAMES:-5|Dalek23:-5|MrJoehobo:10|Beast Mode:-5|Gman8181:-5|TheEloReaper:-5",
-    "Boombox": "i’m high:10|Spud:1|LEBRON*JAMES:-5|Dalek23:-5|MrJoehobo:10|Beast Mode:-5|Gman8181:-5|swerve:10",
-    "Constriction": "LEBRON*JAMES:10|Spud:1|Dalek23:7|MrJoehobo:5|Beast Mode:-5|Gman8181:10|swerve:-5|DT:7",
-    "Emerald": "LEBRON*JAMES:10|i’m high:10|Spud:10|Dalek23:9|MrJoehobo:-4|Beast Mode:-5|Gman8181:10|swerve:10",
-    "Iron": "i’m high:-5|Spud:-5|LEBRON*JAMES:-5|Dalek23:-5|MrJoehobo:10|Beast Mode:-5|Gman8181:-5|swerve:10",
-    "Mapache Chief": "LEBRON*JAMES:10|i’m high:10|Spud:10|Beast Mode:10|Dalek23:-5|MrJoehobo:10|Gman8181:-5|swerve:-5",
-    "Monarch": "LEBRON*JAMES:-5|Spud:-5|Dalek23:7|MrJoehobo:6|Beast Mode:-5|Gman8181:-5|swerve:10|DT:8",
-    "Pilot": "LEBRON*JAMES:10|Spud:10|i’m high:10|Dalek23:7|MrJoehobo:7|Beast Mode:-5|Gman8181:10|swerve:10",
-    "Rush": "LEBRON*JAMES:10|i’m high:10|Spud:10|Dalek23:10|MrJoehobo:6|Beast Mode:-5|Gman8181:10|swerve:10",
-    "Scorpio": "LEBRON*JAMES:10|i’m high:10|Spud:10|Dalek23:10|MrJoehobo:5|Beast Mode:-5|Gman8181:10|swerve:10",
-}
-
 POS = {"o": "offense", "d": "defense"}
 
 
@@ -70,15 +58,9 @@ def run():
             db.add(Rating(player_id=p.id, season_id=s.id, elo=elo_from_points(pts),
                           games=PLACEMENT_GAMES, wins=PLACEMENT_GAMES // 2))
 
-        for map_name, raw in ARCHIVE_VOTES.items():
-            m = Map(name=map_name)
-            db.add(m)
-            db.flush()
-            for pair in raw.split("|"):
-                voter, score = pair.rsplit(":", 1)
-                db.add(MapVote(map_id=m.id, voter_label=voter, score=int(score)))
+        db.add_all(Map(name=n) for n in MLTP_MAJORS)
         db.commit()
-        print(f"Seeded season 4, {len(ARCHIVE_PLAYERS)} players and {len(ARCHIVE_VOTES)} maps.")
+        print(f"Seeded season 4, {len(ARCHIVE_PLAYERS)} players and {len(MLTP_MAJORS)} maps.")
 
 
 if __name__ == "__main__":

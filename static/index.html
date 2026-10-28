@@ -119,6 +119,16 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .map{background:var(--panel);border-radius:4px;padding:10px;display:flex;flex-direction:column}
 .map svg{display:block;width:100%;height:auto;background:#000;border-radius:2px}
 .map h3{text-align:center;margin:8px 0 0;font-size:16px}
+.map img{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;background:#000;border-radius:2px}
+.map-admin{margin-bottom:18px}
+.map-admin summary{cursor:pointer;font-family:var(--display);font-weight:700;font-size:22px}
+.map-admin .row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-top:1px solid var(--line);padding:8px 0;font-size:14px}
+.map-admin .row:first-of-type{border-top:0}
+.map-admin .row input[type=text]{flex:1 1 160px;min-width:0}
+.map-admin .row .sub{color:var(--muted);flex:0 0 auto}
+.map-admin .row.off input[type=text]{opacity:.6}
+.map-admin .btn{margin:0;padding:5px 12px}
+.map-admin .tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
 .chance{text-align:center;font-size:12px;color:var(--muted)}
 .bar{height:4px;background:var(--panel-2);margin:6px 0 8px;border-radius:2px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--red);transition:width .35s ease}
@@ -132,6 +142,11 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .rules h2{font-family:var(--display);font-weight:700;font-size:28px;margin:22px 0 4px}
 .rules p,.rules li{color:var(--text)}
 .rules .draft{color:var(--muted);font-size:13px;margin-top:18px}
+.rules a{color:var(--text);text-decoration:underline}
+.rules .tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:18px}
+.rules .tools .btn{width:auto;margin:0;padding:7px 18px}
+.rules textarea{width:100%;box-sizing:border-box;min-height:340px;margin-top:18px;font:13px/1.5 ui-monospace,Consolas,monospace;background:var(--input);color:var(--text);border:0;border-radius:6px;padding:12px}
+.rules .preview{border-top:1px solid var(--line);margin-top:18px}
 
 dialog{border:0;border-radius:8px;background:var(--panel);color:var(--text);padding:22px 24px;width:min(360px,92vw)}
 dialog::backdrop{background:rgba(0,0,0,.6)}
@@ -351,34 +366,12 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
 
   <section class="view" id="v-maps" hidden>
     <p class="note">A map’s chance comes from the sum of everyone’s votes. Maps whose total falls to zero or below drop out of the rotation.</p>
+    <div class="report map-admin" id="map-admin" hidden></div>
     <div class="maps" id="maps"></div>
   </section>
 
   <section class="view" id="v-rules" hidden>
-    <article class="rules">
-      <h2>Joining a pug</h2>
-      <p>Log in with Discord, then register your TagPro name and the position you play most.</p>
-      <h2>Teams and ratings</h2>
-      <ul>
-        <li>Hit <b>Find match</b>. When 8 players are queued, everyone gets 30 seconds to accept. Missing or declining the ready check locks you out of the queue: 5 minutes the first time, then 15 minutes, 1 hour and 24 hours if it keeps happening the same day.</li>
-        <li>Leaving a match or not showing up, once both captains report it, costs 25 Elo and a longer lockout, and the match is called off for everyone else.</li>
-        <li>If you wait 45 minutes without the queue filling, you're taken out of it. Just queue again.</li>
-        <li>The two highest-rated players captain. The lower-rated captain picks first, in 1-2-2-1 order (red, blue, blue, red, red, blue). Aim for two offense and two defense.</li>
-        <li>Five maps are drawn by vote chance. Captains take turns banning, blue first, until one is left. Then everyone votes on a server and the red captain shares the group link.</li>
-        <li>Ratings work like FACEIT: everyone starts at 1000 Elo, and your Elo sets your skill level from 1 to 10 (level 10 is 2001+).</li>
-        <li>A win between evenly matched teams is worth about 25 Elo. Beating a stronger team earns more and losing to a weaker one costs more. Everyone on a team moves by the same amount.</li>
-        <li>Your first 10 games of a season are placements: they count for a bit more, and your Elo and level stay hidden until they’re done. After that you appear on the Top 100.</li>
-      </ul>
-      <h2>Map voting</h2>
-      <p>Rate any map from −5 to 10 on the Maps page. Your vote counts until you change it, and the rotation updates as votes come in.</p>
-      <h2>Conduct</h2>
-      <ul>
-        <li>Leaving a game in progress counts as a loss.</li>
-        <li>No alt accounts in ranked queues.</li>
-        <li>Keep chat civil. Mods can mute or remove players.</li>
-      </ul>
-      <p class="draft">These rules are placeholders. Edit them to match how your league runs.</p>
-    </article>
+    <article class="rules" id="rules" aria-live="polite"><p class="draft">Loading the rules…</p></article>
   </section>
 
   <section class="view" id="v-report" hidden>
@@ -481,8 +474,8 @@ function renderAuth(){
     h("button",{class:"btn",onclick:logout},"Log out")));
 }
 function logoutCard(){return h("div",{class:"card"},h("h2",{},"Wrong account?"),h("button",{class:"btn",onclick:logout},"Log out"))}
-async function logout(){ try{await api("/auth/logout",{method:"POST"})}catch{} ME={logged_in:false}; renderAuth(); renderMaps(); refreshPlay(); $("#nav-report").hidden=true; if(current==="report")go("home"); }
-async function refreshMe(){ ME=await api("/api/me"); $("#nav-report").hidden=!ME.is_admin; renderAuth(); if(PLAY){ renderDock(); refreshPlay(); } }
+async function logout(){ try{await api("/auth/logout",{method:"POST"})}catch{} ME={logged_in:false}; renderAuth(); renderMaps(); refreshPlay(); $("#nav-report").hidden=true; renderRules(); renderMapAdmin(); if(current==="report")go("home"); }
+async function refreshMe(){ ME=await api("/api/me"); $("#nav-report").hidden=!ME.is_admin; renderAuth(); renderRules(); renderMapAdmin(); if(PLAY){ renderDock(); refreshPlay(); } }
 
 /* ---------- leaderboard ---------- */
 function renderBoard(){
@@ -554,7 +547,10 @@ function renderMaps(){
   const canVote = ME.logged_in && ME.player;
   for(const m of MAPS){
     const card=h("article",{class:"map"});
-    card.insertAdjacentHTML("beforeend",mapSVG(m.name));
+    // TagPro's own preview image; maps it doesn't host fall back to a drawn layout
+    const img=h("img",{src:"https://static.koalabeast.com/images/maps/"+encodeURIComponent(m.name)+".png",alt:`${m.name} map`,loading:"lazy"});
+    img.addEventListener("error",()=>img.outerHTML=mapSVG(m.name),{once:true});
+    card.append(img);
     const list=h("div",{class:"votes",tabindex:"0","aria-label":`Votes for ${m.name}`});
     if(!m.votes.length) list.append(h("div",{class:"hint"},"No votes yet."));
     m.votes.forEach(v=>list.append(h("div",{class:ME.player&&v.voter===ME.player.name?"me":null},v.voter+": ",h("b",{class:v.score>=0?"p":"n"},minus(v.score)))));
@@ -571,6 +567,41 @@ function renderMaps(){
       h("label",{class:"myvote"},"Your vote",sel));
     wrap.append(card);
   }
+}
+
+/* ---------- map pool editor (admins) ---------- */
+let MAP_ADMIN_OPEN=false;
+async function renderMapAdmin(){
+  const box=$("#map-admin");
+  if(!ME.is_admin){ box.hidden=true; box.replaceChildren(); return; }
+  let all; try{ all=await api("/api/admin/maps"); }catch(err){ box.hidden=false; box.replaceChildren(h("p",{class:"err"},err.message)); return; }
+  const msg=h("span",{class:"formmsg","aria-live":"polite"});
+  const act=async(fn,ok)=>{ msg.textContent="Saving…"; msg.classList.remove("err");
+    try{ await fn(); MAPS=await api("/api/maps"); renderMaps(); renderGlance(); await renderMapAdmin(); if(ok) toast(ok); }
+    catch(err){ msg.textContent=err.message; msg.classList.add("err"); } };
+  const send=(path,method,body)=>api("/api/admin/maps"+path,{method,body:body&&JSON.stringify(body)});
+  const rows=all.map(m=>{
+    const name=h("input",{type:"text",value:m.name,maxlength:"48","aria-label":`Name of ${m.name}`});
+    const rename=()=>{ const v=name.value.trim(); if(v&&v!==m.name) act(()=>send(`/${m.id}`,"PATCH",{name:v}),`Renamed to ${v}.`); else name.value=m.name; };
+    name.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); rename(); } });
+    name.addEventListener("change",rename);
+    const on=h("input",{type:"checkbox",checked:m.active,onchange:e=>act(()=>send(`/${m.id}`,"PATCH",{active:e.target.checked}))});
+    return h("div",{class:"row"+(m.active?"":" off")}, name,
+      h("label",{},on," In rotation"),
+      h("span",{class:"sub"},`${m.votes} vote${m.votes===1?"":"s"}, total ${minus(m.total)}`),
+      h("button",{class:"btn",disabled:!m.votes,onclick:()=>{ if(confirm(`Clear all ${m.votes} votes on ${m.name}?`)) act(()=>send(`/${m.id}/votes`,"DELETE"),`Votes on ${m.name} cleared.`); }},"Clear votes"),
+      h("button",{class:"btn",disabled:m.in_use,title:m.in_use?"Played in a match, so it can only be taken out of rotation":null,
+        onclick:()=>{ if(confirm(`Delete ${m.name} and its votes?`)) act(()=>send(`/${m.id}`,"DELETE"),`${m.name} deleted.`); }},"Delete"));
+  });
+  const add=h("input",{type:"text",placeholder:"Map name, exactly as TagPro spells it",maxlength:"48","aria-label":"New map name"});
+  const addForm=h("form",{class:"tools",onsubmit:e=>{ e.preventDefault(); const v=add.value.trim(); if(v) act(()=>send("","POST",{name:v}),`${v} added.`); }},
+    add, h("button",{class:"btn"},"Add map"),
+    h("button",{class:"btn",type:"button",onclick:()=>{ if(confirm("Make the rotation the 12 current MLTP majors maps? Other maps are taken out of rotation, not deleted.")) act(()=>send("/use-mltp-majors","POST"),"Rotation set to the MLTP majors."); }},"Use MLTP majors"));
+  const det=h("details",{open:MAP_ADMIN_OPEN,ontoggle:e=>MAP_ADMIN_OPEN=e.target.open},
+    h("summary",{},`Manage maps (${all.filter(m=>m.active).length} in rotation)`),
+    h("p",{class:"note",style:"margin:8px 0 0;text-align:left"},"Changes apply to the next map veto. The veto draws five maps from those in rotation, weighted by their vote totals; with no votes yet, every map has the same chance."),
+    addForm, ...rows, msg);
+  box.replaceChildren(det); box.hidden=false;
 }
 
 /* ---------- home glance ---------- */
@@ -885,6 +916,59 @@ async function renderDisputes(){
   }));
 }
 
+/* ---------- rules (Markdown from /api/rules; admins can edit) ---------- */
+let RULES=null;
+// Small Markdown subset built as DOM nodes, so no raw HTML gets through:
+// #/##/### headings, - or * bullets, 1. numbered lists, **bold**, *italic*, [text](https://link)
+function mdInline(s){
+  const out=[], re=/\*\*(.+?)\*\*|\*(.+?)\*|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g; let i=0, m;
+  while((m=re.exec(s))){ if(m.index>i) out.push(s.slice(i,m.index));
+    out.push(m[1]!=null?h("b",{},...mdInline(m[1])):m[2]!=null?h("i",{},...mdInline(m[2])):h("a",{href:m[4],target:"_blank",rel:"noopener"},m[3]));
+    i=re.lastIndex; }
+  if(i<s.length) out.push(s.slice(i));
+  return out;
+}
+function mdRender(src){
+  const nodes=[]; let para=[], list=null;
+  const flush=()=>{ if(para.length){ nodes.push(h("p",{},...mdInline(para.join(" ")))); para=[]; } };
+  for(const raw of src.replace(/\r/g,"").split("\n")){
+    const line=raw.trim(), hd=line.match(/^(#{1,3})\s+(.*)$/), li=line.match(/^([-*]|\d+\.)\s+(.*)$/);
+    if(!line){ flush(); list=null; continue; }
+    if(hd){ flush(); list=null; nodes.push(h(hd[1].length===3?"h3":"h2",{},...mdInline(hd[2]))); continue; }
+    if(li){ flush(); const tag=/\d/.test(li[1])?"ol":"ul";
+      if(!list||list.tagName.toLowerCase()!==tag){ list=h(tag); nodes.push(list); }
+      list.append(h("li",{},...mdInline(li[2]))); continue; }
+    if(list&&raw.match(/^\s+/)){ list.lastChild.append(" ",...mdInline(line)); continue; }
+    list=null; para.push(line);
+  }
+  flush(); return nodes;
+}
+async function loadRules(){
+  try{ RULES=await api("/api/rules"); }catch(err){ $("#rules").replaceChildren(h("p",{class:"err"},err.message)); return; }
+  renderRules();
+}
+function renderRules(){
+  const box=$("#rules"); if(!RULES) return;
+  box.replaceChildren(...mdRender(RULES.markdown));
+  if(ME.is_admin){
+    const when=RULES.updated_at?"Last edited "+new Date(RULES.updated_at).toLocaleString()+".":"These are the starting rules. Nobody has edited them yet.";
+    box.append(h("div",{class:"tools"},h("button",{class:"btn",onclick:editRules},"Edit rules"),h("span",{class:"draft",style:"margin:0"},when)));
+  }
+}
+function editRules(){
+  const box=$("#rules"), msg=h("span",{class:"formmsg","aria-live":"polite"});
+  const ta=h("textarea",{"aria-label":"Rules in Markdown",spellcheck:"true"}); ta.value=RULES.markdown;
+  const preview=h("div",{class:"preview"},...mdRender(ta.value));
+  ta.addEventListener("input",()=>preview.replaceChildren(...mdRender(ta.value)));
+  const save=h("button",{class:"btn",onclick:async()=>{ msg.textContent="Saving…"; save.disabled=true;
+    try{ RULES=await api("/api/rules",{method:"PUT",body:JSON.stringify({markdown:ta.value})}); renderRules(); toast("Rules saved."); }
+    catch(err){ msg.textContent=err.message; msg.classList.add("err"); save.disabled=false; }}},"Save");
+  box.replaceChildren(h("h2",{},"Edit rules"),
+    h("p",{class:"draft"},"Write in Markdown: ## for a heading, - for a bullet, **bold**, *italics*, [text](https://link). A blank line starts a new paragraph. The preview below updates as you type."),
+    ta, h("div",{class:"tools"},save,h("button",{class:"btn",onclick:renderRules},"Cancel"),msg), preview);
+  ta.focus();
+}
+
 /* ---------- routing ---------- */
 const VIEWS=["home","top100","maps","rules","report"]; let current="home";
 function go(v,push=true){
@@ -906,7 +990,7 @@ window.addEventListener("hashchange",()=>go(location.hash.slice(1),false));
     const [season] = await Promise.all([api("/api/season"), refreshMe()]);
     renderSeason(season);
     [BOARD,MAPS] = await Promise.all([api("/api/leaderboard"),api("/api/maps")]);
-    renderBoard(); renderMaps(); renderGlance();
+    renderBoard(); renderMaps(); renderGlance(); loadRules();
     await refreshPlay(); connectLive();
   }catch(err){
     $("main").prepend(h("p",{class:"empty err"},err.message));

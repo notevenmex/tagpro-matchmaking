@@ -37,7 +37,7 @@ def make_lobby(status="awaiting_group") -> int:
         blue = Player(discord_id=None, tagpro_name=f"BlueCap{n}", position="defense", tags=[])
         db.add_all([red, blue])
         lobby = Lobby(season_id=s.id, status=status, created_at=0, map_pool=[], server="US Central",
-                      map_id=db.scalar(select(Map.id).where(Map.name == "Bombing Run")))
+                      map_id=db.scalar(select(Map.id).where(Map.name == "Moon Base 2024")))
         db.add(lobby)
         db.flush()
         for p, team in ((red, "red"), (blue, "blue")):
@@ -79,7 +79,7 @@ def test_creates_group_and_dms_captains():
     creator, notifier = FakeCreator(), FakeNotifier()
     asyncio.run(autogroup.run_once(creator, notifier))
     spec = next(s for s in creator.specs if s.lobby_id == lid)
-    assert (spec.map_name, spec.server) == ("Bombing Run", "US Central")
+    assert (spec.map_name, spec.server) == ("Moon Base 2024", "US Central")
     assert [c.team for c in spec.captains] == ["red", "blue"]
     assert all(s.lobby_id != other for s in creator.specs)
 
@@ -87,7 +87,7 @@ def test_creates_group_and_dms_captains():
     assert lobby.status == "in_progress" and lobby.group_link.startswith("https://tagpro.koalabeast.com/groups/")
     assert job.status == "done" and job.dms_sent == 1  # the blue captain has no Discord linked
     (uid, text), = [x for x in notifier.sent if x[0] == f"red-{lid - 1}"]
-    assert lobby.group_link in text and "Bombing Run" in text and "Red" in text
+    assert lobby.group_link in text and "Moon Base 2024" in text and "Red" in text
 
     asyncio.run(autogroup.run_once(creator, notifier))  # nothing left to do
     assert sum(s.lobby_id == lid for s in creator.specs) == 1

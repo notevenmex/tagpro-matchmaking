@@ -157,11 +157,20 @@ def do_pick(db: Session, lobby: Lobby, lp: LobbyPlayer):
         start_veto(db, lobby)
 
 
+def map_weights(db: Session, maps: list[Map]) -> dict[int, float]:
+    """Veto weight per map: its vote total, floored at 0 (voted down to zero or below drops it out
+    of the rotation). A map nobody has voted on yet counts as an average map, so a new map isn't
+    shut out by the first vote cast elsewhere."""
+    totals = dict(db.execute(select(MapVote.map_id, func.sum(MapVote.score)).group_by(MapVote.map_id)).all())
+    voted = [max(0, totals[m.id]) for m in maps if m.id in totals]
+    avg = sum(voted) / len(voted) if voted and sum(voted) else 1
+    return {m.id: max(0, totals[m.id]) if m.id in totals else avg for m in maps}
+
+
 def _weighted_pool(db: Session) -> list[Map]:
     maps = db.scalars(select(Map).where(Map.active.is_(True)).order_by(Map.id)).all()
-    totals = dict(db.execute(select(MapVote.map_id, func.sum(MapVote.score)).group_by(MapVote.map_id)).all())
-    weights = {m.id: max(0, totals.get(m.id) or 0) for m in maps}
-    if any(weights.values()):  # maps voted down to zero or below drop out of the rotation
+    weights = map_weights(db, maps)
+    if any(weights.values()):
         maps = [m for m in maps if weights[m.id] > 0]
     pool = []
     while maps and len(pool) < MAP_POOL_SIZE:

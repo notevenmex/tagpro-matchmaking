@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, play, reporting
+from . import auth, maps_admin, pages, play, reporting
 from .db import Base, Map, MapVote, Match, MatchPlayer, Player, Rating, Season, engine, get_db
 from .rating import LEVELS, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, rating_out, record_match
 
@@ -25,6 +25,8 @@ app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax"
 app.include_router(auth.router)
 app.include_router(play.router)
 app.include_router(reporting.router)
+app.include_router(pages.router)
+app.include_router(maps_admin.router)
 Base.metadata.create_all(engine)
 
 Position = Literal["offense", "defense"]
@@ -148,7 +150,7 @@ def maps(request: Request, db: Session = Depends(get_db)):
         votes[v.map_id].append({"voter": pname or v.voter_label or "?", "score": v.score})
         if me_p and v.player_id == me_p.id:
             mine[v.map_id] = v.score
-    totals = {m.id: max(0, sum(x["score"] for x in votes[m.id])) for m in all_maps}
+    totals = play.map_weights(db, all_maps)  # the same weights the veto draws with
     grand = sum(totals.values()) or 1
     return [{"id": m.id, "name": m.name, "chance": round(totals[m.id] / grand * 100, 2),
              "votes": votes[m.id], "my_vote": mine.get(m.id)} for m in all_maps]

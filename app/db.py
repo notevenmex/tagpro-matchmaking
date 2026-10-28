@@ -42,6 +42,15 @@ class Season(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class SiteText(Base):
+    """Admin-editable page text (Markdown), e.g. key "rules"."""
+    __tablename__ = "site_texts"
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    body: Mapped[str] = mapped_column(String(20000), default="")
+    updated_by: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Discord ID
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class Player(Base):
     __tablename__ = "players"
     id: Mapped[int] = mapped_column(primary_key=True)
