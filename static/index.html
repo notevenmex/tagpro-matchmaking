@@ -106,6 +106,9 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .name{font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
 .dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--off)}
 .dot.d{background:var(--def)}
+.dot.f{background:linear-gradient(90deg,var(--off) 50%,var(--def) 50%)}
+.possel{display:flex;align-items:center;gap:8px;margin:6px 0 10px;font-size:14px}
+.possel select{width:auto}
 .tags{display:flex;flex-wrap:wrap;gap:2px 7px;font-family:var(--display);font-weight:700;font-size:11px;line-height:1.2;margin-top:1px}
 .tag{color:#5fb3ff}
 .tag.og{color:var(--red)}
@@ -357,7 +360,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   <section class="view" id="v-rules" hidden>
     <article class="rules">
       <h2>Joining a pug</h2>
-      <p>Log in with Discord, then register your TagPro name and the position you play most.</p>
+      <p>Log in with Discord, then register your TagPro name and the position you play: Offense, Defense or Flex if you're happy with either. You can change it any time from the Home page, and captains see it in the draft. You can also add alt accounts and switch between them; only one of your accounts can be in the queue at a time.</p>
       <h2>Teams and ratings</h2>
       <ul>
         <li>Hit <b>Find match</b>. When 8 players are queued, everyone gets 30 seconds to accept. Missing or declining the ready check locks you out of the queue: 5 minutes the first time, then 15 minutes, 1 hour and 24 hours if it keeps happening the same day.</li>
@@ -431,7 +434,9 @@ async function api(path, opts={}){
 }
 function badge(lv,size){const b=h("div",{class:"badge",style:`--tier:${tier(lv)}`,title:lv?`Level ${lv}`:"In placements"},lv?String(lv):"–");if(size){b.style.width=b.style.height=size+"px";b.style.fontSize=Math.round(size*.62)+"px"}return b}
 const tagEls = tags => (tags||[]).map(t=>h("span",{class:"tag"+(t==="OG"?" og":t.includes("★")?" champ":"")},t));
-const posLabel = p => p==="defense"?"Defense":"Offense";
+const posLabel = p => p==="defense"?"Defense":p==="flex"?"Flex":"Offense";
+const dotCls = p => "dot"+(p==="defense"?" d":p==="flex"?" f":"");
+const POSITIONS = [["offense","Offense"],["defense","Defense"],["flex","Flex (either)"]];
 
 let ME={logged_in:false}, BOARD=[], MAPS=[];
 
@@ -458,12 +463,39 @@ function renderAuth(){
     return;
   }
   if(!ME.player){
+    wrap.append(regForm("Register",`Signed in as ${ME.discord_name}. Pick the TagPro name you play under.`), logoutCard());
+    return;
+  }
+  const others=(ME.accounts||[]).filter(n=>n!==ME.player.name);
+  wrap.append(h("div",{class:"card wide"}, h("h2",{},ME.player.name),
+    h("p",{},`${posLabel(ME.player.position)}${ME.player.server?" on "+ME.player.server:""}. Signed in through Discord as ${ME.discord_name}.`),
+    h("label",{class:"possel"},"Position:",
+      h("select",{"aria-label":"Your position",onchange:e=>setPosition(e.target.value)},
+        ...POSITIONS.map(([v,l])=>h("option",{value:v,selected:ME.player.position===v},l)))),
+    others.length?h("p",{},"Your other accounts: ",...others.map((n,i)=>[i?" ":"",h("button",{class:"pill",onclick:()=>switchAccount(n),title:`Play as ${n}`},`Play as ${n}`)])):null,
+    h("button",{class:"btn",onclick:()=>openPlayer(ME.player.name)},"View my profile"),
+    h("button",{class:"btn",onclick:logout},"Log out")));
+  if((ME.accounts||[]).length < (ME.max_accounts||1)){
+    const alt=regForm("Add an alt account",`Register another TagPro name on this Discord login (up to ${ME.max_accounts}). Only one of your accounts can be in the queue at a time.`);
+    alt.hidden=true;
+    wrap.append(h("button",{class:"btn",onclick:e=>{alt.hidden=false;e.target.remove();}},"Add an alt account"),alt);
+  }
+}
+async function setPosition(position){
+  try{ await api("/api/me",{method:"PATCH",body:JSON.stringify({position})}); await refreshMe(); toast(`Position set to ${posLabel(position)}.`); }
+  catch(err){ alert(err.message); }
+}
+async function switchAccount(name){
+  try{ await api("/api/me/account",{method:"POST",body:JSON.stringify({name})}); await refreshMe(); renderMaps(); }
+  catch(err){ alert(err.message); }
+}
+function regForm(title,intro){
     const msg=h("div",{class:"formmsg","aria-live":"polite"});
-    const f=h("form",{class:"card wide"}, h("h2",{},"Register"),
-      h("p",{},`Signed in as ${ME.discord_name}. Pick the TagPro name you play under.`),
+    const f=h("form",{class:"card wide"}, h("h2",{},title),
+      h("p",{},intro),
       h("input",{name:"tagpro_name",placeholder:"TagPro name",required:true,maxlength:"24","aria-label":"TagPro name"}),
       h("input",{name:"reddit_name",placeholder:"Reddit name (optional)",maxlength:"24","aria-label":"Reddit name"}),
-      h("select",{name:"position",required:true,"aria-label":"Position"},h("option",{value:""},"Position"),h("option",{value:"offense"},"Offense"),h("option",{value:"defense"},"Defense")),
+      h("select",{name:"position",required:true,"aria-label":"Position"},h("option",{value:""},"Position"),...POSITIONS.map(([v,l])=>h("option",{value:v},l))),
       h("select",{name:"server","aria-label":"Server"},h("option",{value:""},"Server"),...["Centra","Chord","Diameter","Origin","Pi","Radius","Sphere"].map(s=>h("option",{},s))),
       h("button",{class:"btn"},"Register"), msg);
     f.addEventListener("submit",async e=>{
@@ -472,13 +504,7 @@ function renderAuth(){
       try{ await api("/api/register",{method:"POST",body:JSON.stringify({...fd,reddit_name:fd.reddit_name||null,server:fd.server||null})}); await refreshMe(); renderMaps(); }
       catch(err){ msg.textContent=err.message; msg.classList.add("err"); }
     });
-    wrap.append(f, logoutCard());
-    return;
-  }
-  wrap.append(h("div",{class:"card wide"}, h("h2",{},ME.player.name),
-    h("p",{},`${posLabel(ME.player.position)}${ME.player.server?" on "+ME.player.server:""}. Signed in through Discord as ${ME.discord_name}.`),
-    h("button",{class:"btn",onclick:()=>openPlayer(ME.player.name)},"View my profile"),
-    h("button",{class:"btn",onclick:logout},"Log out")));
+    return f;
 }
 function logoutCard(){return h("div",{class:"card"},h("h2",{},"Wrong account?"),h("button",{class:"btn",onclick:logout},"Log out"))}
 async function logout(){ try{await api("/auth/logout",{method:"POST"})}catch{} ME={logged_in:false}; renderAuth(); renderMaps(); refreshPlay(); $("#nav-report").hidden=true; if(current==="report")go("home"); }
@@ -493,7 +519,7 @@ function renderBoard(){
     const col=h("div",{class:"col"});
     slice.forEach(p=>col.append(h("button",{class:"row","data-name":p.name.toLowerCase(),onclick:()=>openPlayer(p.name),"aria-label":`${p.name}, rank ${p.rank}, level ${p.level}, ${p.elo} Elo`},
       h("span",{class:"rank"},p.rank+"."), badge(p.level),
-      h("span",{class:"who"}, h("span",{class:"name"},p.name,h("i",{class:"dot"+(p.position==="defense"?" d":""),title:posLabel(p.position)})), h("span",{class:"tags"},tagEls(p.tags))),
+      h("span",{class:"who"}, h("span",{class:"name"},p.name,h("i",{class:dotCls(p.position),title:posLabel(p.position)})), h("span",{class:"tags"},tagEls(p.tags))),
       h("span",{class:"elo"},String(p.elo))
     )));
     board.append(col);
@@ -614,7 +640,7 @@ const PLAYED=["in_progress","disputed","finished"]; // game started: the dock go
 const STEP={ready_check:"Match found",drafting:"Captains draft",map_veto:"Map veto",server_vote:"Server vote",awaiting_group:"Match ready",in_progress:"Match live",disputed:"Score disputed",finished:"Match over"};
 const nowS=()=>Date.now()/1000+SKEW;
 const teamName=t=>t==="red"?"Red":"Blue";
-const dot=p=>h("i",{class:"dot"+(p.position==="defense"?" d":""),title:posLabel(p.position)});
+const dot=p=>h("i",{class:dotCls(p.position),title:posLabel(p.position)});
 const captain=(L,t)=>L.players.find(p=>p.is_captain&&p.team===t);
 const lobbyKey=L=>L.id+":"+L.status;
 const dismissed=new Set((()=>{try{return JSON.parse(localStorage.getItem("rp-dismissed")||"[]")}catch{return[]}})());
@@ -762,8 +788,8 @@ function viewDraft(L){
   const size=L.players.length/2;
   const team=t=>{
     const ps=L.players.filter(p=>p.team===t).sort((a,b)=>(b.is_captain-a.is_captain)||(a.pick_no-b.pick_no));
-    const o=ps.filter(p=>p.position==="offense").length;
-    return h("section",{class:"team "+t,"aria-label":teamName(t)+" team"},h("h3",{},teamName(t),h("small",{},`${o} O · ${ps.length-o} D`)),
+    const o=ps.filter(p=>p.position==="offense").length, d=ps.filter(p=>p.position==="defense").length, f=ps.length-o-d;
+    return h("section",{class:"team "+t,"aria-label":teamName(t)+" team"},h("h3",{},teamName(t),h("small",{},`${o} O · ${d} D`+(f?` · ${f} Flex`:""))),
       ...ps.map(chip),...Array.from({length:size-ps.length},()=>h("div",{class:"chip empty"},"Open slot")));
   };
   const pool=L.players.filter(p=>!p.team).sort((a,b)=>b.rating-a.rating);
