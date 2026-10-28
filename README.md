@@ -110,8 +110,8 @@ pytest -q
 
 ## Deploying
 
-The site runs on [Railway](https://railway.com) with Postgres at https://tagpropugs.com. The
-`Dockerfile` and `railway.json` hold the build and start settings; the account, domain, secret and
-Discord steps are in [docs/deploy-railway.md](docs/deploy-railway.md).
+The site runs on [Render](https://render.com) with Postgres at https://tagpropugs.com. The
+`Dockerfile` and `render.yaml` (a Render Blueprint) hold the build and start settings; the account,
+domain, secret and Discord steps are in [docs/deploy.md](docs/deploy.md).
 
 Run a single replica with one worker: the queue lock and live-update WebSockets live in memory.
