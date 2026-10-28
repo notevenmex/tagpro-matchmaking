@@ -353,7 +353,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
     <div class="auth" id="auth"></div>
     <div class="glance">
       <section><h2>Top of the ladder</h2><ol id="g-players"></ol></section>
-      <section><h2>Most likely maps</h2><ol id="g-maps"></ol></section>
+      <section><h2>Top-rated maps</h2><ol id="g-maps"></ol></section>
     </div>
   </section>
 
@@ -369,7 +369,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   </section>
 
   <section class="view" id="v-maps" hidden>
-    <p class="note">A map’s chance comes from the sum of everyone’s votes. Maps whose total falls to zero or below drop out of the rotation.</p>
+    <p class="note">Each match’s veto draws seven maps at random from this rotation, so every map is equally likely to come up. Rate the maps to tell the admins what you think.</p>
     <div class="report map-admin" id="map-admin" hidden></div>
     <div class="maps" id="maps"></div>
   </section>
@@ -592,8 +592,8 @@ function renderMaps(){
       try{ await api(`/api/maps/${m.id}/vote`,{method:"PUT",body:JSON.stringify({score:e.target.value===""?null:+e.target.value})}); MAPS=await api("/api/maps"); renderMaps(); renderGlance(); }
       catch(err){ alert(err.message); sel.disabled=false; }
     });
-    card.append(h("h3",{},m.name),h("div",{class:"chance"},`Chance: ${m.chance.toFixed(2)}%`),
-      h("div",{class:"bar"},h("i",{style:`width:${Math.min(100,m.chance*5)}%`})), list,
+    card.append(h("h3",{},m.name),h("div",{class:"chance"},`In ${Math.round(m.chance)}% of vetoes · rating ${minus(m.votes.reduce((s,v)=>s+v.score,0))}`),
+      h("div",{class:"bar"},h("i",{style:`width:${Math.min(100,m.chance)}%`})), list,
       h("label",{class:"myvote"},"Your vote",sel));
     wrap.append(card);
   }
@@ -629,7 +629,7 @@ async function renderMapAdmin(){
     h("button",{class:"btn",type:"button",onclick:()=>{ if(confirm("Make the rotation the 12 current MLTP majors maps? Other maps are taken out of rotation, not deleted.")) act(()=>send("/use-mltp-majors","POST"),"Rotation set to the MLTP majors."); }},"Use MLTP majors"));
   const det=h("details",{open:MAP_ADMIN_OPEN,ontoggle:e=>MAP_ADMIN_OPEN=e.target.open},
     h("summary",{},`Manage maps (${all.filter(m=>m.active).length} in rotation)`),
-    h("p",{class:"note",style:"margin:8px 0 0;text-align:left"},"Changes apply to the next map veto. The veto draws seven maps from those in rotation, weighted by their vote totals; with no votes yet, every map has the same chance."),
+    h("p",{class:"note",style:"margin:8px 0 0;text-align:left"},"Changes apply to the next map veto. The veto draws seven maps at random from those in rotation, every map equally likely. Votes don't affect the draw."),
     addForm, ...rows, msg);
   box.replaceChildren(det); box.hidden=false;
 }
@@ -640,7 +640,8 @@ function renderGlance(){
   BOARD.slice(0,5).forEach(p=>gp.append(h("li",{},badge(p.level,32),h("span",{},p.name),h("span",{class:"sub"},"#"+p.rank))));
   if(!BOARD.length) gp.append(h("li",{class:"sub"},"Nobody ranked yet."));
   const gm=$("#g-maps"); gm.replaceChildren();
-  [...MAPS].sort((a,b)=>b.chance-a.chance).slice(0,5).forEach(m=>gm.append(h("li",{},h("span",{},m.name),h("span",{class:"sub"},m.chance.toFixed(1)+"%"))));
+  const total=m=>m.votes.reduce((s,v)=>s+v.score,0);
+  [...MAPS].sort((a,b)=>total(b)-total(a)).slice(0,5).forEach(m=>gm.append(h("li",{},h("span",{},m.name),h("span",{class:"sub"},minus(total(m))))));
 }
 
 /* ---------- report a match (admins) ---------- */
@@ -844,16 +845,16 @@ function viewDraft(L){
 
 function viewVeto(L){
   const mine=!!(L.me&&L.me.my_turn), cap=captain(L,L.turn), left=L.map_pool.filter(m=>!m.banned_by).length;
-  const chance=id=>{const m=MAPS.find(x=>x.id===id);return m?`${m.chance.toFixed(1)}%`:""};
+
   return [
     popHead(L,"Map veto",mine?`Your ban. ${left-1} more ban${left===2?"":"s"} until the map is locked in.`:`${cap?cap.name:"The captain"} (${teamName(L.turn)}) is banning a map…`,{timer:true,go:mine}),
     timerBar(L),
     h("div",{class:"pop-body"},
-      h("p",{class:"muted",style:"margin:0 0 12px;font-size:13px"},"Maps were drawn by community vote chance. Captains take turns banning, blue first. The last map standing is played."),
+      h("p",{class:"muted",style:"margin:0 0 12px;font-size:13px"},"Seven maps were drawn at random from the rotation. Captains take turns banning, blue first. The last map standing is played."),
       h("div",{class:"veto"},...L.map_pool.map(m=>{
         const card=h("div",{class:"vmap"+(m.banned_by?" banned "+m.banned_by:mine?" can":"")});
         card.append(mapImg(m.name));
-        card.append(h("div",{class:"vrow"},h("b",{},m.name),h("small",{},chance(m.id))),
+        card.append(h("div",{class:"vrow"},h("b",{},m.name)),
           m.banned_by ? h("span",{class:"stamp"},`Banned by ${teamName(m.banned_by)}`)
                       : h("button",{class:"pill ban",disabled:!mine,onclick:()=>act(L,"ban",{map_id:m.id}),"aria-label":`Ban ${m.name}`},"Ban"));
         return card;

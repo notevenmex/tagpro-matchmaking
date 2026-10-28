@@ -1,7 +1,7 @@
 """Admin map pool editing: add, rename, take in or out of rotation, clear votes, delete, and
 replace the pool with the current MLTP majors list.
 
-The veto draws from active maps, weighted by vote totals (play._weighted_pool), so every change
+The veto draws at random from active maps (play._draw_pool), so every change
 here applies to the next queue pop. Names should match TagPro's map names exactly: the group bot
 picks the map by name, and the site shows TagPro's own preview image for it.
 """

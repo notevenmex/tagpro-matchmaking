@@ -16,11 +16,11 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from . import auth, restrictions
-from .db import (GroupJob, Lobby, LobbyPlayer, Map, MapVote, Player, QueueBan, QueueEntry, Rating, Season,
+from .db import (GroupJob, Lobby, LobbyPlayer, Map, Player, QueueBan, QueueEntry, Rating, Season,
                  SessionLocal, get_db)
 from .rating import START_ELO, level
 
@@ -157,32 +157,20 @@ def do_pick(db: Session, lobby: Lobby, lp: LobbyPlayer):
         start_veto(db, lobby)
 
 
-def map_weights(db: Session, maps: list[Map]) -> dict[int, float]:
-    """Veto weight per map: its vote total, floored at 0 (voted down to zero or below drops it out
-    of the rotation). A map nobody has voted on yet counts as an average map, so a new map isn't
-    shut out by the first vote cast elsewhere."""
-    totals = dict(db.execute(select(MapVote.map_id, func.sum(MapVote.score)).group_by(MapVote.map_id)).all())
-    voted = [max(0, totals[m.id]) for m in maps if m.id in totals]
-    avg = sum(voted) / len(voted) if voted and sum(voted) else 1
-    return {m.id: max(0, totals[m.id]) if m.id in totals else avg for m in maps}
+def veto_chance(n_maps: int) -> float:
+    """Percent chance that a given map in rotation is drawn into a veto."""
+    return min(100.0, MAP_POOL_SIZE / n_maps * 100) if n_maps else 0.0
 
 
-def _weighted_pool(db: Session) -> list[Map]:
+def _draw_pool(db: Session) -> list[Map]:
+    """MAP_POOL_SIZE maps drawn at random from the rotation, every map equally likely. Votes don't
+    affect the draw."""
     maps = db.scalars(select(Map).where(Map.active.is_(True)).order_by(Map.id)).all()
-    weights = map_weights(db, maps)
-    if any(weights.values()):
-        maps = [m for m in maps if weights[m.id] > 0]
-    pool = []
-    while maps and len(pool) < MAP_POOL_SIZE:
-        w = [weights[m.id] for m in maps]
-        m = rng.choices(maps, weights=w)[0] if sum(w) > 0 else rng.choice(maps)
-        pool.append(m)
-        maps = [x for x in maps if x.id != m.id]
-    return pool
+    return rng.sample(maps, min(MAP_POOL_SIZE, len(maps)))
 
 
 def start_veto(db: Session, lobby: Lobby):
-    pool = _weighted_pool(db)
+    pool = _draw_pool(db)
     lobby.map_pool = [{"id": m.id, "name": m.name, "banned_by": None} for m in pool]
     if len(pool) <= 1:
         lobby.map_id = pool[0].id if pool else None

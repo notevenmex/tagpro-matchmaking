@@ -45,7 +45,7 @@ Add `me` to `ADMIN_DISCORD_IDS` to see the Report tab.
 - **Matchmaking** (`app/play.py`): a queue of 8 pops a ready check (30 s; anyone who misses or
   declines gets a cooldown and everyone else goes back in the queue with their place).
   The two highest-rated players captain; the lower-rated one is red and picks first, in
-  1-2-2-1 order. Seven maps are drawn by vote chance and captains ban in turn, blue first, down to
+  1-2-2-1 order. Seven maps are drawn at random from the rotation and captains ban in turn, blue first, down to
   one. Then all 8 vote on a server and the red captain pastes the TagPro group link. Timeouts
   auto-pick the best player left and auto-ban a random map. The site shows each step as a pop-up
   and gets live updates over the `/ws` WebSocket. Run a single worker: the lock and socket list

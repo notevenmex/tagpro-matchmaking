@@ -192,9 +192,8 @@ def maps(request: Request, db: Session = Depends(get_db)):
         votes[v.map_id].append({"voter": pname or v.voter_label or "?", "score": v.score})
         if me_p and v.player_id == me_p.id:
             mine[v.map_id] = v.score
-    totals = play.map_weights(db, all_maps)  # the same weights the veto draws with
-    grand = sum(totals.values()) or 1
-    return [{"id": m.id, "name": m.name, "chance": round(totals[m.id] / grand * 100, 2),
+    chance = round(play.veto_chance(len(all_maps)), 2)  # the veto draw ignores votes
+    return [{"id": m.id, "name": m.name, "chance": chance,
              "votes": votes[m.id], "my_vote": mine.get(m.id)} for m in all_maps]
 
 

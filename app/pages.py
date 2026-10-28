@@ -17,13 +17,13 @@ Log in with Discord, then register your TagPro name and the position you play: O
 - Leaving a match or not showing up, once both captains report it, costs 25 Elo and a longer lockout, and the match is called off for everyone else.
 - If you wait 45 minutes without the queue filling, you're taken out of it. Just queue again.
 - The two highest-rated players captain. The lower-rated captain picks first, in 1-2-2-1 order (red, blue, blue, red, red, blue). Aim for two offense and two defense.
-- Seven maps are drawn from the rotation by vote chance. Captains take turns banning, blue first, three bans each, until one is left. Then everyone votes on a server and the red captain shares the group link.
+- Seven maps are drawn at random from the rotation, every map equally likely. Captains take turns banning, blue first, three bans each, until one is left. Then everyone votes on a server and the red captain shares the group link.
 - Ratings work like FACEIT: everyone starts at 1000 Elo, and your Elo sets your skill level from 1 to 10 (level 10 is 2001+).
 - A win between evenly matched teams is worth about 25 Elo. Beating a stronger team earns more and losing to a weaker one costs more. Everyone on a team moves by the same amount.
 - Your first 10 games of a season are placements: they count for a bit more, and your Elo and level stay hidden until they're done. After that you appear on the Top 100.
 
 ## Map voting
-Rate any map from −5 to 10 on the Maps page. Your vote counts until you change it, and the rotation updates as votes come in.
+Rate any map from −5 to 10 on the Maps page to tell the admins what you think of it. Votes don't change which maps come up in the veto.
 
 ## Conduct
 - Leaving a game in progress counts as a loss.
