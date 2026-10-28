@@ -11,21 +11,26 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth
+from . import auth, maps_admin, pages, play, reporting
 from .db import Base, Map, MapVote, Match, MatchPlayer, Player, Rating, Season, engine, get_db
-from .rating import MIN_GAMES, START_ELO, points, team_delta
+from .rating import LEVELS, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, rating_out, record_match
 
 SESSION_SECRET = os.getenv("SESSION_SECRET")
 if not SESSION_SECRET:
     raise RuntimeError("Set SESSION_SECRET to a long random string (see .env.example).")
 
-app = FastAPI(title="Ranked PUGs")
+app = FastAPI(title="Ranked PUGs", lifespan=play.lifespan)
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax",
                    https_only=os.getenv("HTTPS_ONLY", "0") == "1", max_age=60 * 60 * 24 * 30)
 app.include_router(auth.router)
+app.include_router(play.router)
+app.include_router(reporting.router)
+app.include_router(pages.router)
+app.include_router(maps_admin.router)
 Base.metadata.create_all(engine)
 
-Position = Literal["offense", "defense"]
+Position = Literal["offense", "defense"]               # what someone played in a given match
+Preference = Literal["offense", "defense", "flex"]   # what a player prefers; they can change it any time
 Team = Literal["red", "blue"]
 
 
@@ -39,16 +44,6 @@ def active_season(db: Session) -> Season:
 
 def find_player(db: Session, name: str) -> Player | None:
     return db.scalar(select(Player).where(func.lower(Player.tagpro_name) == name.strip().lower()))
-
-
-def get_rating(db: Session, player: Player, season: Season, position: str) -> Rating:
-    r = db.scalar(select(Rating).where(Rating.player_id == player.id, Rating.season_id == season.id,
-                                       Rating.position == position))
-    if not r:
-        r = Rating(player_id=player.id, season_id=season.id, position=position, elo=START_ELO, games=0, wins=0)
-        db.add(r)
-        db.flush()
-    return r
 
 
 def player_out(p: Player) -> dict:
@@ -68,14 +63,16 @@ def me(request: Request, db: Session = Depends(get_db)):
     if not did:
         return {"logged_in": False, "discord_configured": bool(auth.CLIENT_ID)}
     p = auth.current_player(request, db)
+    mine = auth.accounts(db, did)
     return {"logged_in": True, "discord_name": request.session.get("discord_name"),
-            "player": player_out(p) if p else None, "is_admin": auth.is_admin(did, p)}
+            "player": player_out(p) if p else None, "is_admin": auth.is_admin(did, p),
+            "accounts": [a.tagpro_name for a in mine], "max_accounts": auth.MAX_ACCOUNTS}
 
 
 class RegisterIn(BaseModel):
     tagpro_name: str = Field(min_length=1, max_length=24)
     reddit_name: str | None = Field(default=None, max_length=24)
-    position: Position
+    position: Preference
     server: str | None = Field(default=None, max_length=24)
 
 
@@ -84,8 +81,9 @@ def register(body: RegisterIn, request: Request, db: Session = Depends(get_db)):
     did = request.session.get("discord_id")
     if not did:
         raise HTTPException(401, "Log in with Discord first.")
-    if auth.current_player(request, db):
-        raise HTTPException(409, "This Discord account is already registered.")
+    if len(auth.accounts(db, did)) >= auth.MAX_ACCOUNTS:
+        raise HTTPException(409, f"You already have {auth.MAX_ACCOUNTS} TagPro names on this Discord account, "
+                                 "which is the most allowed.")
     name = body.tagpro_name.strip()
     if find_player(db, name):
         raise HTTPException(409, f"“{name}” is already taken. If it’s yours, ask an admin to link it to your Discord.")
@@ -93,6 +91,44 @@ def register(body: RegisterIn, request: Request, db: Session = Depends(get_db)):
                position=body.position, server=body.server or None, tags=[])
     db.add(p)
     db.commit()
+    request.session["player_id"] = p.id  # play as the new name straight away
+    return player_out(p)
+
+
+class ProfileIn(BaseModel):
+    position: Preference | None = None
+    server: str | None = Field(default=None, max_length=24)
+    reddit_name: str | None = Field(default=None, max_length=24)
+
+
+@app.patch("/api/me")
+def edit_profile(body: ProfileIn, p: Player = Depends(auth.require_player), db: Session = Depends(get_db)):
+    """Change your position (offense, defense or flex), server or Reddit name. Only fields you send change;
+    send an empty string to clear server or Reddit name. Applies to the account you're playing as."""
+    sent = body.model_fields_set
+    if "position" in sent and body.position:
+        p.position = body.position
+    if "server" in sent:
+        p.server = (body.server or "").strip() or None
+    if "reddit_name" in sent:
+        p.reddit_name = (body.reddit_name or "").strip() or None
+    db.commit()
+    play.bump()  # open lobbies show the new position
+    return player_out(p)
+
+
+class AccountIn(BaseModel):
+    name: str = Field(min_length=1, max_length=24)
+
+
+@app.post("/api/me/account")
+def switch_account(body: AccountIn, request: Request, db: Session = Depends(get_db)):
+    """Switch which of your TagPro names (main or alt) you're playing as."""
+    p = next((a for a in auth.accounts(db, request.session.get("discord_id"))
+              if a.tagpro_name.lower() == body.name.strip().lower()), None)
+    if not p:
+        raise HTTPException(404, f"“{body.name}” isn’t one of your accounts.")
+    request.session["player_id"] = p.id
     return player_out(p)
 
 
@@ -105,8 +141,14 @@ def leaderboard(limit: int = 100, db: Session = Depends(get_db)):
         .where(Rating.season_id == s.id, Rating.games >= MIN_GAMES)
         .order_by(Rating.elo.desc()).limit(min(max(limit, 1), 500))
     ).all()
-    return [{**player_out(p), "rank": i + 1, "position": r.position, "rating": points(r.elo),
-             "games": r.games, "wins": r.wins} for i, (r, p) in enumerate(rows)]
+    return [{**player_out(p), **rating_out(r), "rank": i + 1} for i, (r, p) in enumerate(rows)]
+
+
+@app.get("/api/levels")
+def levels():
+    """The rating rules, so the front-end can draw level badges and explain them."""
+    return {"start_elo": START_ELO, "k": K, "placement_games": PLACEMENT_GAMES,
+            "levels": [{"level": n, "min_elo": low} for n, low in LEVELS]}
 
 
 @app.get("/api/players")
@@ -123,17 +165,19 @@ def player_detail(name: str, db: Session = Depends(get_db)):
     if not p:
         raise HTTPException(404, f"No player named “{name}”.")
     s = active_season(db)
-    ratings = db.scalars(select(Rating).where(Rating.player_id == p.id, Rating.season_id == s.id)).all()
+    r = db.scalar(select(Rating).where(Rating.player_id == p.id, Rating.season_id == s.id))
+    placed = bool(r) and r.games >= PLACEMENT_GAMES
     recent = db.execute(
         select(MatchPlayer, Match, Map.name).join(Match, MatchPlayer.match_id == Match.id)
         .outerjoin(Map, Match.map_id == Map.id).where(MatchPlayer.player_id == p.id)
         .order_by(Match.played_at.desc()).limit(10)
     ).all()
     return {**player_out(p),
-            "ratings": [{"position": r.position, "rating": points(r.elo), "games": r.games, "wins": r.wins}
-                        for r in ratings],
-            "recent": [{"map": mname, "team": mp.team, "won": mp.team == m.winner,
-                        "change": points(mp.elo_after) - points(mp.elo_before), "played_at": m.played_at.isoformat()}
+            "rating": rating_out(r),
+            # Elo changes stay hidden until placements are done, like the Elo itself
+            "recent": [{"map": mname, "team": mp.team, "position": mp.position, "won": mp.team == m.winner,
+                        "change": mp.elo_after - mp.elo_before if placed else None,
+                        "played_at": m.played_at.isoformat()}
                        for mp, m, mname in recent]}
 
 
@@ -148,9 +192,8 @@ def maps(request: Request, db: Session = Depends(get_db)):
         votes[v.map_id].append({"voter": pname or v.voter_label or "?", "score": v.score})
         if me_p and v.player_id == me_p.id:
             mine[v.map_id] = v.score
-    totals = {m.id: max(0, sum(x["score"] for x in votes[m.id])) for m in all_maps}
-    grand = sum(totals.values()) or 1
-    return [{"id": m.id, "name": m.name, "chance": round(totals[m.id] / grand * 100, 2),
+    chance = round(play.veto_chance(len(all_maps)), 2)  # the veto draw ignores votes
+    return [{"id": m.id, "name": m.name, "chance": chance,
              "votes": votes[m.id], "my_vote": mine.get(m.id)} for m in all_maps]
 
 
@@ -202,23 +245,17 @@ def report_match(body: MatchIn, admin_id: str = Depends(auth.require_admin), db:
     if missing:
         raise HTTPException(400, "These players aren’t registered: " + ", ".join(missing))
 
-    entries = [(found[x.tagpro_name], x, get_rating(db, found[x.tagpro_name], s, x.position)) for x in body.players]
-    d_red, d_blue = team_delta([r.elo for _, x, r in entries if x.team == "red"],
-                               [r.elo for _, x, r in entries if x.team == "blue"], body.winner)
-    m = Match(season_id=s.id, map_id=body.map_id, winner=body.winner, reported_by=admin_id)
-    db.add(m)
-    db.flush()
-    changes = []
-    for p, x, r in entries:
-        before = r.elo
-        r.elo += d_red if x.team == "red" else d_blue
-        r.games += 1
-        r.wins += int(x.team == body.winner)
-        db.add(MatchPlayer(match_id=m.id, player_id=p.id, team=x.team, position=x.position,
-                           elo_before=before, elo_after=r.elo))
-        changes.append({"name": p.tagpro_name, "team": x.team, "before": points(before), "after": points(r.elo)})
+    lineup = [(found[x.tagpro_name], x.team, x.position) for x in body.players]
+    m, changes = record_match(db, s, winner=body.winner, lineup=lineup, map_id=body.map_id, reported_by=admin_id)
     db.commit()
     return {"id": m.id, "changes": changes}
+
+
+# ---------- health check (Railway pings this before switching traffic to a new deploy) ----------
+@app.get("/healthz")
+def healthz(db: Session = Depends(get_db)):
+    db.execute(select(1))
+    return {"ok": True}
 
 
 # ---------- front-end ----------
