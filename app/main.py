@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, maps_admin, pages, play, reporting
+from . import auth, maps_admin, pages, play, reporting, titles
 from .db import Base, Map, MapVote, Match, MatchPlayer, Player, Rating, Season, engine, get_db
 from .rating import PLACEMENT_MULTIPLIER, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, rating_out, record_match
 
@@ -27,6 +27,7 @@ app.include_router(play.router)
 app.include_router(reporting.router)
 app.include_router(pages.router)
 app.include_router(maps_admin.router)
+app.include_router(titles.router)
 Base.metadata.create_all(engine)
 
 Position = Literal["offense", "defense"]               # what someone played in a given match
@@ -46,8 +47,10 @@ def find_player(db: Session, name: str) -> Player | None:
     return db.scalar(select(Player).where(func.lower(Player.tagpro_name) == name.strip().lower()))
 
 
-def player_out(p: Player) -> dict:
-    return {"name": p.tagpro_name, "position": p.position, "server": p.server, "tags": p.tags or []}
+def player_out(p: Player, held: list | None = None) -> dict:
+    """held: the player's awarded season titles (titles.titles_by_player). The 2017 archive tags
+    (p.tags) stay in the database but aren't shown."""
+    return {"name": p.tagpro_name, "position": p.position, "server": p.server, "titles": held or []}
 
 
 # ---------- season & account ----------
@@ -141,7 +144,8 @@ def leaderboard(limit: int = 100, db: Session = Depends(get_db)):
         .where(Rating.season_id == s.id, Rating.games >= MIN_GAMES)
         .order_by(Rating.elo.desc()).limit(min(max(limit, 1), 500))
     ).all()
-    return [{**player_out(p), **rating_out(r), "rank": i + 1} for i, (r, p) in enumerate(rows)]
+    held = titles.titles_by_player(db, (p.id for _, p in rows))
+    return [{**player_out(p, held[p.id]), **rating_out(r), "rank": i + 1} for i, (r, p) in enumerate(rows)]
 
 
 @app.get("/api/rating-rules")
@@ -172,7 +176,7 @@ def player_detail(name: str, db: Session = Depends(get_db)):
         .outerjoin(Map, Match.map_id == Map.id).where(MatchPlayer.player_id == p.id)
         .order_by(Match.played_at.desc()).limit(10)
     ).all()
-    return {**player_out(p),
+    return {**player_out(p, titles.titles_by_player(db, [p.id])[p.id]),
             "rating": rating_out(r),
             # Elo changes stay hidden until placements are done, like the Elo itself
             "recent": [{"map": mname, "team": mp.team, "position": mp.position, "won": mp.team == m.winner,

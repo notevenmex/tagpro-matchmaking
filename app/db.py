@@ -42,6 +42,18 @@ class Season(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class SeasonTitle(Base):
+    """A title an admin sets up for a season (e.g. "Champion"), with its reward, and the player who
+    holds it once it's awarded. season is the season number, so past seasons work too."""
+    __tablename__ = "season_titles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    season: Mapped[int] = mapped_column(Integer, index=True)
+    title: Mapped[str] = mapped_column(String(40))
+    reward: Mapped[str] = mapped_column(String(200), default="")
+    player_id: Mapped[int | None] = mapped_column(ForeignKey("players.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class SiteText(Base):
     """Admin-editable page text (Markdown), e.g. key "rules"."""
     __tablename__ = "site_texts"
