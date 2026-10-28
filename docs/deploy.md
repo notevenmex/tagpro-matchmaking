@@ -38,6 +38,8 @@ Buy `tagpropugs.com` at a registrar; it was unregistered when we checked on Octo
    - `ADMIN_DISCORD_IDS`: your Discord user ID, comma-separated if there are more admins.
    - `DISCORD_BOT_TOKEN`: your app → **Bot → Reset Token**. Leave it blank if the bot isn't set up yet.
    - `DISCORD_GUILD_ID`: your Discord server's ID.
+   - `VOICE_CATEGORY_ID`, `VOICE_LOBBY_CHANNEL_ID`, `VOICE_STAFF_ROLE_ID`: printed by
+     `python -m app.discord_setup` (see step 5). Leave them blank for now if the server isn't set up yet.
 4. Click **Apply**. Render creates the database, builds the image, and deploys it. Under the web
    service's **Logs** you should see `Seeded season 4, ...` from the pre-deploy step, then uvicorn
    starting.
@@ -90,9 +92,10 @@ in the web service's **Environment** tab, then save, which redeploys:
    Chromium; Render passes environment variables to the Docker build), and the `TAGPRO_*` settings
    from `.env.example`. Chromium is memory-hungry: if the service restarts with out-of-memory
    errors, change the instance type to the 2 GB plan ($25 a month).
-3. **Team voice channels:** `VOICE_CHANNELS=1`, `VOICE_CATEGORY_ID`, and optionally
-   `VOICE_LOBBY_CHANNEL_ID`, `VOICE_STAFF_ROLE_ID`, `VOICE_GRACE_SECONDS`, `VOICE_MAX_HOURS`,
-   `VOICE_DMS`.
+3. **Team voice channels:** the Blueprint already sets `VOICE_CHANNELS=1`. Fill in `VOICE_CATEGORY_ID`,
+   `VOICE_LOBBY_CHANNEL_ID` and `VOICE_STAFF_ROLE_ID` if you left them blank. The optional settings
+   and their defaults are `VOICE_GRACE_SECONDS=120`, `VOICE_MAX_HOURS=3`, `VOICE_DMS=1` and
+   `VOICE_PRIVATE=0`.
 
 ## 6. Results from tagpro.eu
 

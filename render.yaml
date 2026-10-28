@@ -41,6 +41,15 @@ services:
         sync: false
       - key: DISCORD_GUILD_ID
         sync: false
+      # Team voice channels (docs/discord-server.md). `python -m app.discord_setup` prints the IDs.
+      - key: VOICE_CHANNELS
+        value: "1"
+      - key: VOICE_CATEGORY_ID
+        sync: false
+      - key: VOICE_LOBBY_CHANNEL_ID
+        sync: false
+      - key: VOICE_STAFF_ROLE_ID
+        sync: false
 
 databases:
   - name: tagpropugs-db
