@@ -786,6 +786,7 @@ function viewMatch(L){
   hero.append(h("div",{},h("b",{},L.map||"Map not set"),h("span",{},L.server?`Server: ${L.server}`:"")));
   const team=t=>h("section",{class:"team "+t},h("h3",{},teamName(t)),...L.players.filter(p=>p.team===t).sort((a,b)=>b.is_captain-a.is_captain).map(chip));
   const group=h("div",{class:"group"});
+  if(L.voice_link) group.append(h("a",{class:"pill big",href:L.voice_link,target:"_blank",rel:"noopener"},`Join ${teamName(L.me.team)} voice`));
   if(L.group_link) group.append(h("a",{class:"pill ok big",href:L.group_link,target:"_blank",rel:"noopener"},"Join the TagPro group"));
   if(meRed){
     const inp=h("input",{type:"url",required:true,placeholder:"https://tagpro.koalabeast.com/groups/…","aria-label":"TagPro group link",value:GROUP_DRAFT||L.group_link||"",oninput:e=>{GROUP_DRAFT=e.target.value}});

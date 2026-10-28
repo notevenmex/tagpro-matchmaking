@@ -83,6 +83,15 @@ bot waits in the group until a captain joins, makes them leader, and leaves. If 
 few times, the captains get a DM asking the red captain to make the group and paste the link on the
 match page. Research notes, settings and known risks: [docs/tagpro-groups.md](docs/tagpro-groups.md).
 
+## Team voice channels
+
+Voice is required in matches. When the draft ends, the same Discord bot creates private **Red** and
+**Blue** voice channels that only that team (and Moderators) can join, moves anyone already in voice on
+the server into theirs, DMs everyone the link, and deletes the channels after the match. Set
+`VOICE_CHANNELS=1`, `DISCORD_GUILD_ID` and `VOICE_CATEGORY_ID`. The full server layout, bot invite
+link and step-by-step setup (including `python -m app.discord_setup`, which builds the channels for
+you) are in [docs/discord-server.md](docs/discord-server.md).
+
 ## Tests
 
 ```bash

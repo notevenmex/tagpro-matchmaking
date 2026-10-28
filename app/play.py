@@ -321,13 +321,13 @@ async def _loop():
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    from . import autogroup  # imports this module, so load it late
+    from . import autogroup, voice  # they import this module, so load them late
     task = asyncio.create_task(_loop())
-    bot = autogroup.start()
+    bots = [b for b in (autogroup.start(), voice.start()) if b]
     yield
     task.cancel()
-    if bot:
-        bot.cancel()
+    for b in bots:
+        b.cancel()
 
 
 @router.websocket("/ws")
@@ -347,6 +347,7 @@ async def ws(websocket: WebSocket):
 
 # ---------- views ----------
 def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
+    from . import voice  # imports this module
     lps = _lobby_players(db, lobby)
     mine = next((lp for lp, p in lps if me and p.id == me.id), None)
     t = turn(db, lobby)
@@ -362,6 +363,7 @@ def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
         "servers": [{"name": s, "votes": votes[s]} for s in SERVERS], "server": lobby.server,
         "group_link": lobby.group_link if mine else None,
         "group_bot": db.scalar(select(GroupJob.status).where(GroupJob.lobby_id == lobby.id)),  # see autogroup.py
+        "voice_link": voice.voice_links(db, lobby.id).get(mine.team) if mine and mine.team else None,  # voice.py
         "me": None if not mine else {
             "team": mine.team, "is_captain": mine.is_captain, "accepted": mine.accepted,
             "server_vote": mine.server_vote, "my_turn": bool(mine.is_captain and t == mine.team)},
