@@ -66,7 +66,8 @@ def finish(db: Session, lobby: Lobby, red_score: int, blue_score: int, reported_
     """Save the verified score as a Match, update Elo and close the lobby. Doesn't commit."""
     lineup = [(p, lp.team, p.position) for lp, p in play._lobby_players(db, lobby)]
     m, _ = record_match(db, db.get(Season, lobby.season_id), winner="red" if red_score > blue_score else "blue",
-                        lineup=lineup, map_id=lobby.map_id, reported_by=reported_by)
+                        lineup=lineup, map_id=lobby.map_id, reported_by=reported_by,
+                        queue_id=lobby.queue_id)
     m.red_score, m.blue_score = red_score, blue_score
     lobby.match_id, lobby.status, lobby.deadline = m.id, "finished", play.clock()
     return m
