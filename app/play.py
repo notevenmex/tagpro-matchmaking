@@ -311,9 +311,9 @@ async def _loop():
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    from . import autogroup, voice  # they import this module, so load them late
+    from . import autogroup, tagpro_eu, voice  # they import this module, so load them late
     task = asyncio.create_task(_loop())
-    bots = [b for b in (autogroup.start(), voice.start()) if b]
+    bots = [b for b in (autogroup.start(), voice.start(), tagpro_eu.start()) if b]
     yield
     task.cancel()
     for b in bots:
@@ -338,8 +338,9 @@ async def ws(websocket: WebSocket):
 # ---------- views ----------
 def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
     from .reporting import score_view
-    from . import voice  # imports this module
+    from . import tagpro_eu, voice  # they import this module
     lps = _lobby_players(db, lobby)
+    stats = tagpro_eu.season_stats(db, lobby.season_id, [p.id for _, p in lps])
     mine = next((lp for lp, p in lps if me and p.id == me.id), None)
     t = turn(db, lobby)
     votes = Counter(lp.server_vote for lp, _ in lps if lp.server_vote)
@@ -348,12 +349,14 @@ def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
         "id": lobby.id, "status": lobby.status, "deadline": lobby.deadline, "note": lobby.note,
         "turn": t, "pick_order": PICK_ORDER, "step_seconds": STEP_SECONDS.get(lobby.status),
         "players": [{"name": p.tagpro_name, "position": p.position, "elo": round(lp.elo), "tags": p.tags or [],
-                     "accepted": lp.accepted, "team": lp.team, "is_captain": lp.is_captain, "pick_no": lp.pick_no}
+                     "accepted": lp.accepted, "team": lp.team, "is_captain": lp.is_captain, "pick_no": lp.pick_no,
+                     "stats": stats.get(p.id)}  # season totals from tagpro.eu (tagpro_eu.py)
                     for lp, p in lps],
         "map_pool": lobby.map_pool, "map": map_name,
         "servers": [{"name": s, "votes": votes[s]} for s in SERVERS], "server": lobby.server,
         "group_link": lobby.group_link if mine else None,
         "group_bot": db.scalar(select(GroupJob.status).where(GroupJob.lobby_id == lobby.id)),  # see autogroup.py
+        "team_name": tagpro_eu.team_name(lobby.id),  # what to call both teams so tagpro.eu can find the game
         "score": score_view(db, lobby, me),
         "voice_link": voice.voice_links(db, lobby.id).get(mine.team) if mine and mine.team else None,  # voice.py
         "me": None if not mine else {
@@ -537,6 +540,8 @@ def set_group(lobby_id: int, body: GroupIn, p: Player = Depends(auth.require_pla
             raise HTTPException(400, "Paste the TagPro group link (https://tagpro.koalabeast.com/groups/…).")
         lobby.group_link = body.link.strip()
         lobby.status = "in_progress"
+        from . import tagpro_eu  # imports this module
+        tagpro_eu.game_started(db, lobby)
         return _done(db)
 
 

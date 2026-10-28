@@ -135,7 +135,7 @@ This needs live updates (WebSockets) for the queue, ready check and draft screen
 ## Open questions
 
 - Where the queue and draft happen: on the website with a live draft page, in a Discord bot, or both (website draft, Discord "match found" pings). This was the last unanswered question.
-- Whether tagpro.eu or another stats source is still available for automatic result collection.
+- ~~Whether tagpro.eu or another stats source is still available for automatic result collection.~~ tagpro.eu is used (docs/tagpro-eu.md).
 - Whether ratings should consider anything beyond win/loss (cap differential, individual stats).
 - Real rules text for the Rules page (currently placeholders).
 - Hosting choice (Railway, Render, Fly.io or a VPS) and a domain.
