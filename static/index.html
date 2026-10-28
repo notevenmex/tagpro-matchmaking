@@ -296,6 +296,10 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
 @media (max-width:520px){.teams2{grid-template-columns:1fr}}
 .group{margin-top:16px;padding:14px;border-radius:14px;background:var(--panel-2);display:grid;gap:10px;text-align:center}
 .group form{display:flex;gap:8px}
+.group.score form{flex-wrap:wrap;justify-content:center;align-items:center}
+.group.score input{flex:0 0 64px;text-align:center}
+.group.score .final{font-family:var(--display);font-size:24px}
+.team-red{color:var(--team-red);font-weight:600}.team-blue{color:var(--team-blue);font-weight:600}
 .group input{flex:1;min-width:0;font:inherit;font-size:14px;background:var(--input);color:var(--text);border:0;border-radius:999px;padding:9px 14px}
 @media (prefers-reduced-motion:reduce){
   .dock,.toast,dialog.pop[open],.chip,.live-dot{animation:none}
@@ -602,9 +606,10 @@ $("#report-form").addEventListener("submit",async e=>{
 });
 
 /* ---------- matchmaking: queue, ready check, draft, map veto ---------- */
-let PLAY=null, SKEW=0, LAST_KEY=null, GROUP_DRAFT="", playTimer=null;
-const LIVE=["ready_check","drafting","map_veto","server_vote","awaiting_group","in_progress"];
-const STEP={ready_check:"Match found",drafting:"Captains draft",map_veto:"Map veto",server_vote:"Server vote",awaiting_group:"Match ready",in_progress:"Match live"};
+let PLAY=null, SKEW=0, LAST_KEY=null, GROUP_DRAFT="", SCORE_DRAFT={}, playTimer=null;
+const LIVE=["ready_check","drafting","map_veto","server_vote","awaiting_group","in_progress","disputed","finished"];
+const PLAYED=["in_progress","disputed","finished"]; // game started: the dock goes back to queue controls
+const STEP={ready_check:"Match found",drafting:"Captains draft",map_veto:"Map veto",server_vote:"Server vote",awaiting_group:"Match ready",in_progress:"Match live",disputed:"Score disputed",finished:"Match over"};
 const nowS=()=>Date.now()/1000+SKEW;
 const teamName=t=>t==="red"?"Red":"Blue";
 const dot=p=>h("i",{class:"dot"+(p.position==="defense"?" d":""),title:posLabel(p.position)});
@@ -665,11 +670,11 @@ function renderDock(){
   const pips=h("div",{class:"pips","aria-hidden":"true"},...Array.from({length:P.size},(_,i)=>h("i",{class:i<n?"on":null})));
   const info=(label,...sub)=>h("div",{},h("div",{class:"label"},label),h("div",{class:"sub"},...sub));
   const acts=h("div",{class:"acts"});
-  if(L && LIVE.includes(L.status) && L.status!=="in_progress"){
+  if(L && LIVE.includes(L.status) && !PLAYED.includes(L.status)){
     d.append(h("span",{class:"live-dot"}),info(STEP[L.status],`Match #${L.id}`),h("div",{class:"acts"},h("button",{class:"pill primary",onclick:openLobby},"Open")));
     return;
   }
-  if(L && L.status==="in_progress") acts.append(h("button",{class:"pill ghost",onclick:openLobby},`Match #${L.id}`));
+  if(L && PLAYED.includes(L.status)) acts.append(h("button",{class:"pill ghost",onclick:openLobby},`Match #${L.id}`));
   if(!ME.logged_in){
     d.append(info("Ranked queue",`${n}/${P.size} searching`),pips,acts); acts.append(h("a",{class:"pill primary",href:"/auth/login"},"Log in to play")); return;
   }
@@ -679,6 +684,11 @@ function renderDock(){
   if(P.banned_until && P.banned_until>nowS()){
     d.append(info("Queue locked","Missed ready check · ",h("span",{"data-deadline":P.banned_until},fmt(P.banned_until-nowS()))),acts);
     acts.append(h("button",{class:"pill",disabled:true},"Find match")); return;
+  }
+  if(P.queue_block){ // captains wait for a verified score before queueing again
+    d.append(info("Queue locked",P.queue_block),acts);
+    if(!L) acts.append(h("button",{class:"pill",disabled:true},"Find match"));
+    return;
   }
   if(P.in_queue){
     d.append(h("span",{class:"live-dot"}),info("Searching…",`${n}/${P.size} in queue · `,h("span",{"data-since":P.queued_at},fmt(nowS()-P.queued_at))),pips,acts);
@@ -706,10 +716,10 @@ function renderLobby(){
   if(L.status==="cancelled"){ if(fresh) toast(L.note||"The match was cancelled."); if(dlg.open)dlg.close(); renderDock(); return; }
   if(fresh && L.status==="ready_check" && !L.me?.accepted) matchFoundAlert();
   if(dismissed.has(key) && L.status!=="ready_check"){ if(dlg.open)dlg.close(); return; }
-  const view={ready_check:viewReady,drafting:viewDraft,map_veto:viewVeto,server_vote:viewServer,awaiting_group:viewMatch,in_progress:viewMatch}[L.status];
+  const view={ready_check:viewReady,drafting:viewDraft,map_veto:viewVeto,server_vote:viewServer,awaiting_group:viewMatch,in_progress:viewMatch,disputed:viewMatch,finished:viewMatch}[L.status];
   if(!view) return;
   const keepScroll=$(".pop-body",dlg)?.scrollTop||0;
-  dlg.className="pop "+({ready_check:"",server_vote:"",drafting:"lg",map_veto:"md",awaiting_group:"md",in_progress:"md"})[L.status];
+  dlg.className="pop "+({ready_check:"",server_vote:"",drafting:"lg",map_veto:"md",awaiting_group:"md",in_progress:"md",disputed:"md",finished:"md"})[L.status];
   dlg.replaceChildren(...view(L).filter(Boolean));
   if(!fresh){ const b=$(".pop-body",dlg); if(b) b.scrollTop=keepScroll; }
   if(!dlg.open) dlg.showModal();
@@ -802,17 +812,45 @@ function viewMatch(L){
   const team=t=>h("section",{class:"team "+t},h("h3",{},teamName(t)),...L.players.filter(p=>p.team===t).sort((a,b)=>b.is_captain-a.is_captain).map(chip));
   const group=h("div",{class:"group"});
   if(L.group_link) group.append(h("a",{class:"pill ok big",href:L.group_link,target:"_blank",rel:"noopener"},"Join the TagPro group"));
-  if(meRed){
+  if(meRed && !["disputed","finished"].includes(L.status)){
     const inp=h("input",{type:"url",required:true,placeholder:"https://tagpro.koalabeast.com/groups/…","aria-label":"TagPro group link",value:GROUP_DRAFT||L.group_link||"",oninput:e=>{GROUP_DRAFT=e.target.value}});
     const f=h("form",{},inp,h("button",{class:"pill primary"},L.group_link?"Update":"Share"));
     f.addEventListener("submit",async e=>{e.preventDefault(); await act(L,"group",{link:inp.value}); GROUP_DRAFT="";});
     group.append(h("span",{class:"muted"},L.group_link?"Wrong link? Paste the right one.":"You’re the red captain: create a private group on TagPro and paste its link here."),f);
   } else if(!L.group_link) group.append(h("span",{class:"muted"},`Waiting for ${red?red.name:"the red captain"} to create the TagPro group…`));
+  const sub={in_progress:"Good luck, have fun.",disputed:"The captains reported different scores.",finished:"Thanks for playing."}[L.status]||"Teams and map are locked in.";
   return [
-    popHead(L,STEP[L.status],L.status==="in_progress"?"Good luck, have fun.":"Teams and map are locked in."),
-    h("div",{class:"pop-body"},hero,h("div",{class:"teams2"},team("red"),team("blue")),L.me&&group),
+    popHead(L,STEP[L.status],sub),
+    h("div",{class:"pop-body"},hero,scoreBox(L),h("div",{class:"teams2"},team("red"),team("blue")),L.me&&!["disputed","finished"].includes(L.status)&&group),
     h("div",{class:"pop-foot"},h("button",{class:"pill",onclick:dismissLobby},"Close")),
   ];
+}
+
+/* both captains report the final score; matching reports verify it, different ones go to an admin */
+function scoreBox(L){
+  const S=L.score; if(!S) return null;
+  const box=h("div",{class:"group score"});
+  const line=(r,b)=>`Red ${r} – ${b} Blue`;
+  if(S.final){
+    const F=S.final;
+    box.append(h("b",{class:"final"},line(F.red_score,F.blue_score)),
+      h("span",{class:"muted"},`${teamName(F.winner)} wins. `+(F.verified_by==="admin"?"Score set by an admin.":"Both captains confirmed it.")));
+    return box;
+  }
+  if(L.status==="disputed") box.append(h("span",{},"Disputed: the captains’ scores don’t match. An admin will review it."));
+  const mine=L.me&&L.me.team, reported=S.reported.includes(mine);
+  if(S.can_report){
+    if(S.reports) for(const t of S.reported) box.append(h("span",{class:"muted"},`${teamName(t)} captain${t===mine?" (you)":""} reported ${line(S.reports[t].red_score,S.reports[t].blue_score)}`));
+    const d=SCORE_DRAFT[L.id]||(SCORE_DRAFT[L.id]={red:S.reports?.[mine]?.red_score??"",blue:S.reports?.[mine]?.blue_score??""});
+    const num=(t)=>h("input",{type:"number",min:0,max:99,required:true,inputmode:"numeric","aria-label":`${teamName(t)} caps`,value:d[t],oninput:e=>{d[t]=e.target.value}});
+    const f=h("form",{},h("span",{class:"team-red"},"Red"),num("red"),h("span",{},"–"),num("blue"),h("span",{class:"team-blue"},"Blue"),
+      h("button",{class:"pill primary"},reported?"Update":"Submit"));
+    f.addEventListener("submit",async e=>{e.preventDefault(); await act(L,"report",{red_score:+d.red,blue_score:+d.blue});});
+    box.append(h("span",{class:"muted"},reported?(L.status==="disputed"?"Made a typo? Fix your score and it clears if it now matches.":"Waiting for the other captain to confirm."):"Captains: enter the final score once the game ends. You can queue again when both scores match."),f);
+  } else if(L.status==="in_progress"){
+    box.append(h("span",{class:"muted"},S.reported.length?`${S.reported.length} of 2 captains reported the score.`:"The captains report the score when the game ends. You can queue again now."));
+  }
+  return box;
 }
 
 /* ---------- disputed scores (admins) ---------- */

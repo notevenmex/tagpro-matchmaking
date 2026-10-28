@@ -385,10 +385,12 @@ def play_state(request: Request, db: Session = Depends(get_db)):
     live = db.scalars(select(Lobby).where(Lobby.status.in_(PRE_GAME + ("in_progress", "disputed")))
                       .order_by(Lobby.id.desc()).limit(10)).all()
     mine = next((e for e, _ in queue if me and e.player_id == me.id), None)
+    from .reporting import queue_block
     return {"now": t, "size": QUEUE_SIZE, "dev": auth.DEV_LOGIN,
             "queue": [name for _, name in queue],
             "in_queue": mine is not None, "queued_at": mine.joined_at if mine else None,
             "banned_until": ban,
+            "queue_block": queue_block(db, me.id) if me else None,  # captains waiting on a verified score
             "lobby": lobby_view(db, lobby, me) if lobby else None,
             "live": [{"id": x.id, "status": x.status} for x in live]}
 

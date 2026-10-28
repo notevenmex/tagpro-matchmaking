@@ -50,6 +50,8 @@ def test_matching_reports_verify_and_free_the_captains():
 
     # captains can't queue until the score is in and verified; everyone else can
     assert "Report the final score" in red_cap.post("/api/queue").json()["detail"]
+    assert "Report the final score" in red_cap.get("/api/play").json()["queue_block"]
+    assert red.get("/api/play").json()["queue_block"] is None
     assert red.post("/api/queue").status_code == 200
     assert red.delete("/api/queue").status_code == 200
 
