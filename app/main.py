@@ -13,7 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, maps_admin, pages, play, reporting
 from .db import Base, Map, MapVote, Match, MatchPlayer, Player, Rating, Season, engine, get_db
-from .rating import LEVELS, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, rating_out, record_match
+from .rating import PLACEMENT_MULTIPLIER, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, rating_out, record_match
 
 SESSION_SECRET = os.getenv("SESSION_SECRET")
 if not SESSION_SECRET:
@@ -144,11 +144,11 @@ def leaderboard(limit: int = 100, db: Session = Depends(get_db)):
     return [{**player_out(p), **rating_out(r), "rank": i + 1} for i, (r, p) in enumerate(rows)]
 
 
-@app.get("/api/levels")
-def levels():
-    """The rating rules, so the front-end can draw level badges and explain them."""
+@app.get("/api/rating-rules")
+def rating_rules():
+    """The rating rules, so the front-end can explain them."""
     return {"start_elo": START_ELO, "k": K, "placement_games": PLACEMENT_GAMES,
-            "levels": [{"level": n, "min_elo": low} for n, low in LEVELS]}
+            "placement_multiplier": PLACEMENT_MULTIPLIER}
 
 
 @app.get("/api/players")
