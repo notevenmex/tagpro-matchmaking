@@ -13,7 +13,7 @@ from sqlalchemy import select  # noqa: E402
 from app import autogroup, play, seed  # noqa: E402
 from app.db import GroupJob, Lobby, LobbyPlayer, Map, Player, Season, SessionLocal  # noqa: E402
 from app.discord_bot import DiscordNotifier  # noqa: E402
-from app.tagpro_group import GroupError, group_settings, pick_map, pick_server  # noqa: E402
+from app.tagpro_group import GroupError, group_settings, pick_map, region_for  # noqa: E402
 
 seed.run()
 
@@ -130,12 +130,12 @@ def test_cancelled_lobby_gets_no_dm():
 
 
 def test_settings_and_option_matching(monkeypatch):
-    s = group_settings()  # PUG defaults: 8 minutes, 6-cap mercy, no cap limit
+    s = group_settings()  # PUG defaults, with the live group page's setting names
     assert (s["time"], s["mercyRule"], s["caps"], s["mode"]) == ("8", "6", "0", "classic")
-    monkeypatch.setenv("TAGPRO_NOKISS_SETTING", "noKiss=true")
+    assert s["kissingFCs"] == "false" and s["overtime"] == "true"
     monkeypatch.setenv("TAGPRO_GROUP_SETTINGS", json.dumps({"time": 10}))
     s = group_settings()
-    assert s["noKiss"] == "true" and s["time"] == "10" and s["mercyRule"] == "6"
+    assert s["time"] == "10" and s["mercyRule"] == "6"
 
     maps = [("", "Random"), ("bomber", "Bombing Run"), ("Pilot", "Pilot"), ("Mapache Chief", "Mapache Chief")]
     assert pick_map(maps, "Bombing Run") == "bomber"
@@ -143,12 +143,10 @@ def test_settings_and_option_matching(monkeypatch):
     assert pick_map(maps, "Mapache Chief") == "Mapache Chief"
     assert pick_map(maps, "Nowhere") is None
 
-    servers = [("", "Any"), ("tagpro-chicago", "Chicago"), ("tagpro-newcastle", "Newcastle")]
-    assert pick_server(servers, "US Central") == "tagpro-chicago"
-    assert pick_server(servers, "Europe") is None
-    monkeypatch.setenv("TAGPRO_SERVER_MAP", json.dumps({"Europe": "Newcastle"}))
-    assert pick_server(servers, "Europe") == "tagpro-newcastle"
-
+    assert region_for("US Central") == "US Central"
+    assert region_for("oceanic") == "Oceanic"
+    assert region_for("Newcastle") is None and region_for(None) is None
+    assert play.SERVERS == ["US East", "US Central", "US West", "Europe", "Oceanic"]
 
 def test_discord_dm_uses_bot_api():
     calls = []

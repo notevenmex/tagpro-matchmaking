@@ -38,7 +38,8 @@ BAN_SECONDS = _int("BAN_SECONDS", 30)            # per ban, then a random map is
 VOTE_SECONDS = _int("VOTE_SECONDS", 20)
 MAP_POOL_SIZE = _int("MAP_POOL_SIZE", 7)
 CAPTAIN_MODE = os.getenv("CAPTAIN_MODE", "top")  # top | random
-SERVERS = [s.strip() for s in os.getenv("SERVERS", "US East,US Central,US West,Europe").split(",") if s.strip()]
+# TagPro region names (tagpro_group.REGIONS); the winner becomes the group's region
+SERVERS = [s.strip() for s in os.getenv("SERVERS", "US East,US Central,US West,Europe,Oceanic").split(",") if s.strip()]
 
 # Red captain picks first (A, B, B, A, A, B, ...); blue captain bans first.
 PICK_ORDER = [("red", "blue", "blue", "red")[i % 4] for i in range(QUEUE_SIZE - 2)]
