@@ -42,13 +42,19 @@ Add `me` to `ADMIN_DISCORD_IDS` to see the Report tab.
   row after they log in once.
 - **Matches** are entered by admins on the Report tab for now.
 - **Matchmaking** (`app/play.py`): a queue of 8 pops a ready check (30 s; anyone who misses or
-  declines is locked out for 5 min and everyone else goes back in the queue with their place).
+  declines gets a cooldown and everyone else goes back in the queue with their place).
   The two highest-rated players captain; the lower-rated one is red and picks first, in
   1-2-2-1 order. Five maps are drawn by vote chance and captains ban in turn, blue first, down to
   one. Then all 8 vote on a server and the red captain pastes the TagPro group link. Timeouts
   auto-pick the best player left and auto-ban a random map. The site shows each step as a pop-up
   and gets live updates over the `/ws` WebSocket. Run a single worker: the lock and socket list
   live in memory. Timers and sizes can be changed with the env vars in `.env.example`.
+- **Queue rules** (`app/restrictions.py`): missing or declining a ready check gives a cooldown
+  of 5 min, then 15 min, 1 h and 24 h; strikes reset after a day with none. A leaver or no-show
+  reported by both captains (or one admin) loses 25 Elo, gets a 30 min / 2 h / 24 h cooldown,
+  and voids an unfinished match so nobody else's Elo changes. Anyone waiting 45 min without the
+  queue popping is taken out. Admins can ban for a set time or permanently, with a reason the
+  player sees. All of these are env vars in `.env.example`.
 - **Testing a match alone:** with `DEV_LOGIN=1`, join the queue and press **Fill with bots**.
   Archived players fill the other 7 spots and accept, pick and ban on their own.
 
@@ -65,6 +71,9 @@ Add `me` to `ADMIN_DISCORD_IDS` to see the Report tab.
 | POST / DELETE | `/api/queue` (join / leave) | registered players |
 | POST | `/api/lobbies/{id}/accept`, `/decline`, `/pick {name}`, `/ban {map_id}`, `/server {server}`, `/group {link}` | players in that lobby |
 | POST | `/api/lobbies/{id}/cancel` | admins |
+| POST | `/api/lobbies/{id}/leaver {name}` | both captains, or an admin |
+| GET / POST | `/api/admin/bans` (list / `{name, minutes or null for permanent, reason}`) | admins |
+| DELETE | `/api/admin/bans/{name}?clear_strikes=true` | admins |
 | WS | `/ws` sends `{"type": "update"}` whenever matchmaking changes | anyone |
 
 ## Tests
