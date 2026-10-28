@@ -223,6 +223,8 @@ def test_tagpro_eu_settles_the_match_and_records_stats(clock):
 
     final = red_cap.get(f"/api/lobbies/{lid}/score").json()["final"]
     assert final["verified_by"] == "tagpro.eu" and final["tagpro_eu"].endswith("?match=901")
+    assert "Salty Runback" in red_cap.get("/api/play").json()["queue_block"]  # the vote holds everyone
+    assert red_cap.post(f"/api/lobbies/{lid}/runback", json={"yes": False}).status_code == 200
     assert red_cap.get("/api/play").json()["queue_block"] is None
     view = red_cap.get(f"/api/lobbies/{lid}").json()
     me = next(p for p in view["players"] if p["name"] == names["red"][0])

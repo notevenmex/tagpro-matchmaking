@@ -121,7 +121,12 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 @media (max-width:560px){.qpanel{grid-template-columns:auto 1fr}.qpanel .btn{grid-column:1/-1}}
 .glance{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:40px}
 .glance section{background:var(--panel);border-radius:6px;padding:16px 18px}
-.glance h2{font-family:var(--display);font-weight:700;font-size:24px;margin:0 0 8px}
+.glance h2{font-family:var(--display);font-weight:700;font-size:24px;margin:0 0 8px;display:flex;align-items:baseline;gap:10px}
+.glance h2 a{color:inherit;text-decoration:none}
+.glance h2 a:hover{color:var(--red)}
+.glance h2 a.all{margin-left:auto;font-family:var(--body);font-weight:500;font-size:13px;color:var(--muted)}
+.glance .glink{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.glance .glink:hover>span:not(.sub){text-decoration:underline}
 .glance ol{margin:0;padding:0;list-style:none}
 .glance li{display:flex;align-items:center;gap:10px;padding:5px 0;border-top:1px solid var(--line)}
 .glance li:first-child{border-top:0}
@@ -253,6 +258,9 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .rrow .mine{display:flex;flex-direction:column;gap:2px;font-size:12px}
 @media (max-width:560px){.rrow{grid-template-columns:22px 48px 1fr auto}.rrow .thumb img,.rrow .thumb svg{width:48px;height:36px}.rrow .mine{grid-column:3/-1;flex-direction:row;align-items:center;gap:8px}}
 .rate-after{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--panel-2);border-radius:12px;padding:10px 14px;margin:0 0 14px;font-size:14px}
+.runback{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--panel-2);border-radius:12px;padding:10px 14px;margin:0 0 10px;font-size:14px}
+.runback b{font-size:15px}
+.runback .grow{flex:1 1 220px}
 .rate-after select{font:inherit;background:var(--input);color:var(--text);border:0;border-radius:6px;padding:4px 6px}
 .meta-row{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px;font-size:14px}
 .meta-row label{display:flex;align-items:center;gap:6px}
@@ -262,6 +270,31 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .up{color:#4ade80}.down{color:var(--def)}
 .recent{margin:14px 0 0;padding:0;list-style:none;font-size:13px}
 .recent li{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding:4px 0}
+.recent li.link{cursor:pointer;gap:10px}
+.recent li.link:hover,.recent li.link:focus-visible{background:var(--panel-2)}
+.recent .when{color:var(--muted);margin-left:6px}
+.histset{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-top:12px;font-size:13px;color:var(--muted)}
+.histset select{font:inherit;background:var(--input);color:var(--text);border:0;border-radius:6px;padding:2px 4px}
+#player{width:min(420px,92vw)}
+/* ---------- Post Match page (also the pop-up when a match ends) ---------- */
+.pm{max-width:820px;margin:0 auto;background:var(--panel);border-radius:6px;padding:18px 22px 22px}
+.pm .eyebrow{margin:0;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.pm-score{display:flex;align-items:center;justify-content:center;gap:18px;font-family:var(--display);font-size:40px;line-height:1;margin:4px 0 6px}
+.pm-score .team-red{color:var(--team-red)} .pm-score .team-blue{color:var(--team-blue)}
+.pm-score small{font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.pm-meta{text-align:center;color:var(--muted);font-size:13px;margin:0 0 14px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px}
+.pm-meta a{color:inherit}
+.pm-wrap{overflow-x:auto;margin:0 0 12px;border-radius:10px;background:var(--panel-2)}
+.pm-table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.pm-table th,.pm-table td{padding:6px 8px;text-align:right;white-space:nowrap}
+.pm-table th:first-child,.pm-table td:first-child{text-align:left}
+.pm-table thead th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.pm-table caption{text-align:left;font-family:var(--display);font-size:18px;padding:8px 8px 2px}
+.pm-table.red caption{color:var(--team-red)} .pm-table.blue caption{color:var(--team-blue)}
+.pm-table tbody tr{border-top:1px solid var(--line)}
+.pm-table tr.me td:first-child{font-weight:700}
+.pm-table .cap{font-size:10px;font-weight:700;background:#1d1d1f;color:#facc15;border-radius:4px;padding:1px 4px;margin-left:6px}
+.pm-table .up{color:var(--ok)} .pm-table .down{color:var(--team-red)}
 .empty{text-align:center;color:var(--muted);padding:40px 0}
 .votes .hint{color:var(--muted)}
 /* ---------- matchmaking: queue dock, toast and pop-up dialogs ---------- */
@@ -416,9 +449,14 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
 .chat .clog .mod{margin-left:auto;flex:none;font:inherit;font-size:11px;border:0;background:none;color:var(--muted);cursor:pointer;text-decoration:underline}
 .chat .clog .empty{color:var(--muted);font-size:13px}
 .chat form{display:flex;gap:8px}
+.chat form[hidden]{display:none}
 .chat input{flex:1;min-width:0;font:inherit;font-size:14px;background:var(--input);color:var(--text);border:0;border-radius:999px;padding:8px 14px}
 .chat form .pill{padding:8px 16px}
-.report .chat{padding:10px 0 0}
+.report .chat,.pm-chat .chat{padding:10px 0 0}
+.pm-chat{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+.pm-chat h3{margin:0;font-family:var(--display);font-size:22px}
+.pm-chat .chat{border-top:0}
+.pm-chat .chat .clog{max-height:360px}
 .report .chat .clog{max-height:420px}
 .chat-admin .pick-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
 .chat-admin form.mute{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
@@ -461,8 +499,8 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
     <section class="qpanel" id="qpanel" aria-live="polite" hidden></section>
     <section class="livem" id="livem" hidden></section>
     <div class="glance">
-      <section><h2>Top of the ladder</h2><ol id="g-players"></ol></section>
-      <section><h2>Top-rated maps</h2><ol id="g-maps"></ol></section>
+      <section><h2><a href="#top100" data-go="top100">Top of the ladder</a><a class="all" href="#top100" data-go="top100">See all</a></h2><ol id="g-players"></ol></section>
+      <section><h2><a href="#ratings" data-go="ratings">Top-rated maps</a><a class="all" href="#ratings" data-go="ratings">See all</a></h2><ol id="g-maps"></ol></section>
     </div>
   </section>
 
@@ -488,6 +526,10 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   <section class="view" id="v-ratings" hidden>
     <p class="note">How players rate each map in the rotation, from −5 to 10. Rate maps here or after a match. Ratings don’t change which maps come up in the veto.</p>
     <div class="report ratings" id="ratings"></div>
+  </section>
+
+  <section class="view" id="v-match" hidden>
+    <article class="pm" id="match-page" aria-live="polite"><p class="draft">Loading the match…</p></article>
   </section>
 
   <section class="view" id="v-rules" hidden>
@@ -525,6 +567,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
     <div><h2 id="pd-name"></h2><p id="pd-meta"></p><div class="tags" id="pd-tags"></div></div>
   </div>
   <ul class="recent" id="pd-recent"></ul>
+  <div class="histset" id="pd-hist"></div>
   <form method="dialog"><button class="btn">Close</button></form>
 </dialog>
 
@@ -639,6 +682,24 @@ function renderBoard(){
     board.append(col);
   }
 }
+// recent matches on a profile; each opens its Post Match page. Players can hide theirs and pick how many show.
+function renderRecent(p){
+  const open=m=>{ $("#player").close(); location.hash="match/"+m.match_id; };
+  const score=m=>m.red_score==null?"":` ${m.team==="red"?m.red_score:m.blue_score}–${m.team==="red"?m.blue_score:m.red_score}`;
+  const items=p.recent.map(m=>h("li",{class:"link",tabindex:"0",role:"link","aria-label":`Open match on ${m.map||"unknown map"}`,
+      onclick:()=>open(m),onkeydown:e=>{ if(e.key==="Enter") open(m); }},
+    h("span",{},`${m.won?"Won":"Lost"}${score(m)} on ${m.map||"unknown map"}`,h("span",{class:"when"},shortDate(m.played_at))),
+    m.change==null?h("span",{class:"sub"},"placement"):h("span",{class:m.change>=0?"up":"down"},(m.change>=0?"+":"")+minus(m.change))));
+  const list=$("#pd-recent");
+  if(p.recent_hidden&&!p.own){ list.replaceChildren(h("li",{class:"sub"},`${p.name} keeps their recent matches private.`)); }
+  else list.replaceChildren(...(items.length?items:[h("li",{class:"sub"},"No matches yet.")]));
+  $("#pd-hist").replaceChildren();
+  if(!p.own) return;
+  const save=async body=>{ try{ await api("/api/me/match-history",{method:"PATCH",body:JSON.stringify(body)}); openPlayer(p.name); }catch(err){ toast(err.message); } };
+  const show=h("input",{type:"checkbox",checked:!p.recent_hidden,onchange:e=>save({show:e.target.checked})});
+  const count=h("select",{"aria-label":"How many recent matches to list",onchange:e=>save({count:+e.target.value})},...[5,10,20].map(n=>{const o=h("option",{value:String(n)},`Last ${n}`); if(n===p.recent_count) o.selected=true; return o;}));
+  $("#pd-hist").append(h("label",{},show," Show my recent matches to others"),count);
+}
 async function openPlayer(name){
   const dlg=$("#player");
   try{
@@ -650,7 +711,7 @@ async function openPlayer(name){
       : r.elo!=null ? `${posLabel(p.position)} · ${r.elo} Elo · ${rec}`
       : `${posLabel(p.position)} · Placements: ${r.placements_left} left · ${rec}`;
     $("#pd-tags").replaceChildren(...titleEls(p.titles));
-    $("#pd-recent").replaceChildren(...p.recent.map(m=>h("li",{},h("span",{},`${m.won?"Won":"Lost"} on ${m.map||"unknown map"}`),m.change==null?h("span",{class:"sub"},"placement"):h("span",{class:m.change>=0?"up":"down"},(m.change>=0?"+":"")+minus(m.change)))));
+    renderRecent(p);
     if(!dlg.open) dlg.showModal();
   }catch(err){ alert(err.message); }
 }
@@ -694,6 +755,80 @@ function renderRatings(){
       h("label",{class:"mine"},h("span",{class:"sub"},"Yours"),ratingSelect(m)));
   }));
 }
+/* ---------- Post Match: score, runback vote, map rating and everyone's stats; one link per match ---------- */
+const MATCHES={}; // match id -> /api/matches/{id}
+async function loadMatch(id){ MATCHES[id]=await api("/api/matches/"+id); return MATCHES[id]; }
+const matchURL=id=>location.origin+"/match/"+id;
+const shortDate=iso=>new Date(iso).toLocaleDateString([],{month:"short",day:"numeric"});
+function statTable(D,t){
+  const cols=[["caps","Caps"],["grabs","Grabs"],["hold","Hold"],["returns","Rets"],["tags","Tags"],["pops","Pops"],["prevent","Prev"]];
+  const time=k=>k==="hold"||k==="prevent";
+  const meName=ME.player&&ME.player.name;
+  const row=p=>h("tr",{class:p.name===meName?"me":null},
+    h("td",{},h("a",{href:"#",onclick:e=>{e.preventDefault();openPlayer(p.name)}},p.name),p.is_captain?h("span",{class:"cap"},"CAPT"):null),
+    h("td",{},p.change==null?h("span",{class:"muted",title:"Elo shows after placements"},"–")
+      :h("span",{},String(p.elo_after)," ",h("span",{class:p.change>=0?"up":"down"},`(${p.change>=0?"+":""}${minus(p.change)})`))),
+    ...cols.map(([k])=>h("td",{},p.stats?(time(k)?mmss(p.stats[k]):String(p.stats[k])):"–")));
+  return h("div",{class:"pm-wrap"},h("table",{class:"pm-table "+t},
+    h("caption",{},`${teamName(t)}${D.winner===t?" · Win":""}`),
+    h("thead",{},h("tr",{},h("th",{},"Player"),h("th",{},"Elo"),...cols.map(([,l])=>h("th",{},l)))),
+    h("tbody",{},...D.teams[t].map(row))));
+}
+function postMatchBody(D){
+  const hero=h("div",{class:"hero"}); if(D.map) hero.append(mapImg(D.map)); else hero.insertAdjacentHTML("beforeend",mapSVG("?"));
+  hero.append(h("div",{},h("b",{},D.map||"Map not recorded"),h("span",{},D.server?`Server: ${D.server}`:"")));
+  const score=h("div",{class:"pm-score","aria-label":`Red ${D.red_score??"?"}, Blue ${D.blue_score??"?"}`},
+    h("span",{class:"team-red"},h("small",{},"Red "),String(D.red_score??"–")),h("span",{},"–"),h("span",{class:"team-blue"},String(D.blue_score??"–"),h("small",{}," Blue")));
+  const how={admin:"Score set by an admin",captains:"Both captains confirmed it","tagpro.eu":"Score from tagpro.eu"}[D.verified_by];
+  const copy=h("a",{href:matchURL(D.id),onclick:async e=>{ e.preventDefault(); try{ await navigator.clipboard.writeText(matchURL(D.id)); toast("Match link copied."); }catch{ location.hash="match/"+D.id; } }},"Copy link");
+  const meta=h("p",{class:"pm-meta"},h("span",{},`${teamName(D.winner)} wins · ${how} · ${shortDate(D.played_at)}`),
+    D.tagpro_eu?h("a",{href:D.tagpro_eu,target:"_blank",rel:"noopener"},"Full stats on tagpro.eu"):h("span",{},"No tagpro.eu record"),copy);
+  const L={id:D.lobby_id,runback:D.runback,map:D.map,me:D.me};
+  const noStats=!D.teams.red.concat(D.teams.blue).some(p=>p.stats);
+  return [hero,score,meta,D.lobby_id&&runbackBox(L),D.me&&rateAfterMatch({id:D.lobby_id??"m"+D.id,map:D.map,me:D.me}),
+    statTable(D,"red"),statTable(D,"blue"),
+    noStats?h("p",{class:"muted",style:"text-align:center;font-size:13px;margin:0"},"Player stats come from tagpro.eu, and this game wasn’t found there."):null].filter(Boolean);
+}
+async function renderMatchPage(id){
+  const box=$("#match-page");
+  try{
+    const D=MATCHES[id]&&MATCHES[id].id===+id?MATCHES[id]:await loadMatch(id);
+    const title=D.lobby_id?`PUG #${D.lobby_id}`:`Match ${D.id}`;
+    document.title=`Ranked PUGs – ${title}`;
+    box.replaceChildren(h("p",{class:"eyebrow"},"Post match"),h("h2",{style:"margin:0 0 12px"},title+(D.runback_of?` · Salty Runback of PUG #${D.runback_of}`:"")),...postMatchBody(D),
+      ...(D.lobby_id?[h("div",{class:"pm-chat"},h("h3",{},"Match chat"),MATCH_CHAT.show(D.lobby_id))]:[]));
+  }catch(err){ box.replaceChildren(h("p",{class:"empty err"},err.message)); }
+}
+// the "Match over" pop-up is the Post Match page for the lobby's match
+function viewPostMatch(L){
+  const D=MATCHES[L.match_id];
+  if(!D){ loadMatch(L.match_id).then(()=>{ renderLobby(); const b=$("#lobby .pop-body"); if(b) b.scrollTop=0; }).catch(()=>{}); }
+  const body=D?postMatchBody({...D,runback:L.runback}):[h("p",{class:"muted",style:"text-align:center"},"Loading the result…")];
+  return [
+    popHead(L,"Post match",`Thanks for playing. PUG #${L.id}`),
+    h("div",{class:"pop-body"},...body),
+    h("div",{class:"pop-foot"},h("a",{class:"pill",href:"#match/"+L.match_id,onclick:dismissLobby},"Open match page"),h("button",{class:"pill",onclick:dismissLobby},"Close")),
+  ];
+}
+
+// "Salty Runback?": all 8 players say yes and the same teams play the same map again
+function runbackBox(L){
+  const R=L.runback; if(!R) return null;
+  const box=h("div",{class:"runback"});
+  if(R.status==="passed"){ box.append(h("b",{},"Runback on!"),h("span",{class:"muted grow"},`All ${R.size} said yes. Same teams, same map: match #${R.new_lobby_id}.`)); return box; }
+  if(!L.me && R.status!=="passed") return null; // only the players vote
+  if(R.status==="failed"){ box.append(h("b",{},"No runback this time."),h("span",{class:"muted grow"},R.note)); return box; }
+  const left=h("span",{class:"secs","data-deadline":R.deadline,"aria-label":"Time left to vote"},fmt(R.deadline-nowS()));
+  const tally=h("span",{class:"muted"},`${R.yes}/${R.size} want it`);
+  if(R.can_vote&&R.my_vote==null){
+    box.append(h("div",{class:"grow"},h("b",{},"Salty Runback?"),h("div",{class:"muted"},`Same teams on ${L.map||"the same map"}. It only happens if all ${R.size} say yes.`)),
+      tally,left,
+      h("button",{class:"pill primary",onclick:()=>act(L,"runback",{yes:true})},"Yes"),
+      h("button",{class:"pill",onclick:()=>act(L,"runback",{yes:false})},"No"));
+  } else box.append(h("b",{class:"grow"},R.my_vote?"You’re in. Waiting on the others…":"Salty Runback vote"),tally,left);
+  return box;
+}
+
 // asked once at the end of each match; skipping is remembered per match in this browser
 function rateAfterMatch(L){
   const m=MAPS.find(x=>x.name===L.map); if(!m||!L.me||!ME.player) return null;
@@ -914,11 +1049,14 @@ async function renderMapAdmin(){
 /* ---------- home glance ---------- */
 function renderGlance(){
   const gp=$("#g-players"); gp.replaceChildren();
-  BOARD.slice(0,5).forEach(p=>gp.append(h("li",{},badge(p.elo,28),h("span",{},p.name),h("span",{class:"sub"},"#"+p.rank))));
+  // each row opens the player's profile; each map row goes to the Ratings page
+  BOARD.slice(0,5).forEach(p=>gp.append(h("li",{},h("button",{class:"glink",onclick:()=>openPlayer(p.name)},badge(p.elo,28),h("span",{},p.name),h("span",{class:"sub"},"#"+p.rank)))));
   if(!BOARD.length) gp.append(h("li",{class:"sub"},"Nobody ranked yet."));
   const gm=$("#g-maps"); gm.replaceChildren();
-  const total=m=>m.votes.reduce((s,v)=>s+v.score,0);
-  [...MAPS].sort((a,b)=>total(b)-total(a)).slice(0,5).forEach(m=>gm.append(h("li",{},h("span",{},m.name),h("span",{class:"sub"},minus(total(m))))));
+  // same order as the Ratings page: best average first
+  [...MAPS].sort((a,b)=>(avgRating(b)??-99)-(avgRating(a)??-99)||b.votes.length-a.votes.length||a.name.localeCompare(b.name)).slice(0,5)
+    .forEach(m=>{ const a=avgRating(m); gm.append(h("li",{},h("button",{class:"glink",onclick:()=>go("ratings")},h("span",{},m.name),
+      h("span",{class:"sub"},a==null?"No ratings":`${minus(a.toFixed(1))} · ${m.votes.length} rating${m.votes.length===1?"":"s"}`)))); });
 }
 
 /* ---------- report a match (admins) ---------- */
@@ -961,6 +1099,7 @@ function saveDismissed(){try{localStorage.setItem("rp-dismissed",JSON.stringify(
 
 async function refreshPlay(){
   try{ PLAY=await api("/api/play"); SKEW=PLAY.now-Date.now()/1000; renderDock(); renderLobby(); }catch{}
+  if(current==="match"&&MATCH_ID){ try{ await loadMatch(MATCH_ID); renderMatchPage(MATCH_ID); }catch{} }
 }
 function schedulePlay(){ clearTimeout(playTimer); playTimer=setTimeout(refreshPlay,60); }
 let wsDelay=1000;
@@ -1019,8 +1158,7 @@ function renderLiveMatches(){
       h("div",{class:"top"},h("b",{},m.map||"Map veto pending"),h("span",{class:"elo",title:"Average Elo of all 8 players"},m.avg_elo??"–",h("small",{}," avg Elo"))),
       h("div",{class:"sub",style:"color:var(--muted)"},`Match #${m.id}${m.server?" · "+m.server:""}`),
       h("div",{class:"teams"},team("red"),team("blue")),
-      m.group_link?h("div",{class:"spec"},h("a",{class:"pill",href:m.group_link,target:"_blank",rel:"noopener"},"Spectate"),
-        h("span",{},"Spectators: no chat during the game, or the bot removes you.")):null));
+      m.group_link?h("div",{class:"spec"},h("a",{class:"pill",href:m.group_link,target:"_blank",rel:"noopener"},"Spectate")):null));
   })));
 }
 function renderQueuePanel(){
@@ -1058,6 +1196,7 @@ function renderDock(){
     return;
   }
   if(L && PLAYED.includes(L.status)) acts.append(h("button",{class:"pill ghost",onclick:openLobby},`Match #${L.id}`));
+  if(L && L.runback && L.runback.can_vote && L.runback.my_vote==null) acts.append(h("button",{class:"pill primary",onclick:openLobby},"Salty Runback?"));
   if(!ME.logged_in){
     d.append(info("Ranked queue",`${n}/${P.size} searching`),pips,acts); acts.append(h("a",{class:"pill primary",href:"/auth/login"},"Log in to play")); return;
   }
@@ -1115,12 +1254,12 @@ function makeChat(){
       const unread=D.messages.some(m=>m.channel===ch&&!m.mine&&m.id>(st.seen[ch]||0));
       return h("button",{type:"button",role:"tab","aria-selected":String(ch===st.tab),class:(ch!==st.tab&&unread?"unread ":"")+(ch!=="all"?"team-"+ch:""),
         onclick:()=>{st.tab=ch; st.render();}},label(ch));
-    }), h("span",{class:"note"},D.muted_until?"You’re muted from chat.":!D.open?"Chat is closed.":st.tab!=="all"?"Only your team sees this.":D.is_admin&&!D.can_send.length?"":"Everyone in the match sees this."));
+    }), h("span",{class:"note"},D.muted_until?"You’re muted from chat.":!D.open?"Chat is closed.":!D.can_send.includes(st.tab)?"":st.tab!=="all"?"Only your team sees this.":"Everyone in the match sees this."));
     const near=log.scrollHeight-log.scrollTop-log.clientHeight<40;
     const lines=D.messages.filter(m=>m.channel===st.tab);
     log.replaceChildren(...(lines.length?lines.map(m=>h("p",{class:m.hidden?"hidden":null,title:new Date(m.at*1000).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})},
       h("span",{class:"who "+(m.admin?"admin":m.team?"team-"+m.team:"")},(m.admin?"[Admin] ":"")+m.name+":"),h("span",{},m.body),
-      D.is_admin&&h("button",{class:"mod",type:"button",onclick:()=>st.hide(m)},m.hidden?"Unhide":"Hide"))):[h("p",{class:"empty"},st.tab==="all"?"No messages yet. Say glhf.":"No team messages yet.")]));
+      D.is_admin&&h("button",{class:"mod",type:"button",onclick:()=>st.hide(m)},m.hidden?"Unhide":"Hide"))):[h("p",{class:"empty"},!D.open?"Nobody chatted here.":st.tab==="all"?"No messages yet. Say glhf.":"No team messages yet.")]));
     if(near) log.scrollTop=log.scrollHeight;
     const can=D.can_send.includes(st.tab);
     form.hidden=!can; inp.maxLength=D.max_len;
@@ -1146,9 +1285,9 @@ function makeChat(){
   };
   return st;
 }
-const LOBBY_CHAT=makeChat(), ADMIN_CHAT=makeChat();
+const LOBBY_CHAT=makeChat(), ADMIN_CHAT=makeChat(), MATCH_CHAT=makeChat(); // pop-up, Report page, /match/<id> page
 LOBBY_CHAT.onchange=()=>{ if(!$("#lobby").open) renderDock(); };
-function onChatPing(id){ for(const c of [LOBBY_CHAT,ADMIN_CHAT]) if(c.id===id) c.load(); }
+function onChatPing(id){ for(const c of [LOBBY_CHAT,ADMIN_CHAT,MATCH_CHAT]) if(c.id===id) c.load(); }
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&LOBBY_CHAT.data) LOBBY_CHAT.render(); });
 
 /* admins: read any match's chat (team chat too), hide lines, post in All chat while it's open, and mute players */
@@ -1197,7 +1336,7 @@ function renderLobby(){
   if(fresh && L.status==="ready_check" && !L.me?.accepted) matchFoundAlert();
   if(CHAT_FROM.includes(L.status)) LOBBY_CHAT.show(L.id); // keeps the chat loaded, so the dock can count new lines while minimized
   if(dismissed.has(key) && L.status!=="ready_check"){ if(dlg.open)dlg.close(); return; }
-  const view={ready_check:viewReady,drafting:viewDraft,map_veto:viewVeto,server_vote:viewServer,awaiting_group:viewMatch,in_progress:viewMatch,disputed:viewMatch,finished:viewMatch}[L.status];
+  const view={ready_check:viewReady,drafting:viewDraft,map_veto:viewVeto,server_vote:viewServer,awaiting_group:viewMatch,in_progress:viewMatch,disputed:viewMatch,finished:L.match_id?viewPostMatch:viewMatch}[L.status];
   if(!view) return;
   const keepScroll=$(".pop-body",dlg)?.scrollTop||0;
   const chat=CHAT_FROM.includes(L.status)&&LOBBY_CHAT.el, typing=chat&&chat.contains(document.activeElement)&&document.activeElement;
@@ -1314,10 +1453,10 @@ function viewMatch(L){
     f.addEventListener("submit",async e=>{e.preventDefault(); await act(L,"group",{link:inp.value}); GROUP_DRAFT="";});
     group.append(h("span",{class:"muted"},L.group_link?"Wrong link? Paste the right one.":`You’re the red captain: create a private group on TagPro and paste its link here. Name both teams ${L.team_name} so the score can be read from tagpro.eu.`),f);
   } else if(!L.group_link) group.append(h("span",{class:"muted"},`Waiting for ${red?red.name:"the red captain"} to create the TagPro group…`));
-  const sub={in_progress:"Good luck, have fun.",disputed:"The captains reported different scores.",finished:"Thanks for playing."}[L.status]||"Teams and map are locked in.";
+  const sub={in_progress:"Good luck, have fun.",disputed:"The captains reported different scores.",finished:"Thanks for playing."}[L.status]||(L.runback_of?`Salty Runback of match #${L.runback_of}. Same teams, same map.`:"Teams and map are locked in.");
   return [
     popHead(L,STEP[L.status],sub),
-    h("div",{class:"pop-body"},hero,scoreBox(L),L.status==="finished"&&rateAfterMatch(L),h("div",{class:"teams2"},team("red"),team("blue")),L.me&&!["disputed","finished"].includes(L.status)&&group),
+    h("div",{class:"pop-body"},hero,scoreBox(L),L.status==="finished"&&runbackBox(L),L.status==="finished"&&rateAfterMatch(L),h("div",{class:"teams2"},team("red"),team("blue")),L.me&&!["disputed","finished"].includes(L.status)&&group),
     h("div",{class:"pop-foot"},h("button",{class:"pill",onclick:dismissLobby},"Close")),
   ];
 }
@@ -1458,16 +1597,19 @@ function editRules(){
 }
 
 /* ---------- routing ---------- */
-const VIEWS=["home","top100","maps","ratings","rules","report"]; let current="home";
+const VIEWS=["home","top100","maps","ratings","rules","report","match"]; let current="home", MATCH_ID=null;
 function go(v,push=true){
-  if(!VIEWS.includes(v) || (v==="report" && !ME.is_admin)) v="home";
+  const mm=/^match\/(\d+)$/.exec(v||""); MATCH_ID=mm?+mm[1]:null; if(mm) v="match";
+  if(!VIEWS.includes(v) || (v==="report" && !ME.is_admin) || (v==="match" && !MATCH_ID)) v="home";
   current=v;
   VIEWS.forEach(x=>{$("#v-"+x).hidden=x!==v});
   document.querySelectorAll("nav a").forEach(a=>{ if(a.dataset.go===v)a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
-  document.title="Ranked PUGs – "+({home:"Home",top100:"Leaderboard",maps:"Maps",ratings:"Map ratings",rules:"Rules",report:"Report a match"})[v];
+  document.title="Ranked PUGs – "+({home:"Home",top100:"Leaderboard",maps:"Maps",ratings:"Map ratings",rules:"Rules",report:"Report a match",match:"Match"})[v];
+  if(v==="match"){ $("#match-page").replaceChildren(h("p",{class:"draft"},"Loading the match…")); renderMatchPage(MATCH_ID); window.scrollTo(0,0); }
   if(v==="report"){ setupReport(); renderChatAdmin(); renderDisputes(); renderTitleAdmin(); renderAnnounceAdmin(); }
   if(v==="ratings") renderRatings();
-  if(push && location.hash!=="#"+v) history.replaceState(null,"","#"+v);
+  const hash=v==="match"?"match/"+MATCH_ID:v;
+  if(push && location.hash!=="#"+hash) history.replaceState(null,"","#"+hash);
 }
 document.addEventListener("click",e=>{const t=e.target.closest("[data-go]");if(t){e.preventDefault();go(t.dataset.go)}});
 $(".wordmark").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go("home")}});

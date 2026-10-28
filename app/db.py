@@ -87,6 +87,14 @@ class Player(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class PlayerPrefs(Base):
+    """A player's own display settings: whether their profile lists their recent matches, and how many."""
+    __tablename__ = "player_prefs"
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), primary_key=True)
+    show_recent: Mapped[bool] = mapped_column(Boolean, default=True)
+    recent_count: Mapped[int] = mapped_column(Integer, default=10)
+
+
 class Rating(Base):
     """One FACEIT-style Elo per player, per season (see rating.py)."""
     __tablename__ = "ratings"
@@ -292,6 +300,22 @@ class MatchNotice(Base):
     link: Mapped[str] = mapped_column(String(200), default="")
     sent: Mapped[int] = mapped_column(Integer, default=0)
     sent_at: Mapped[float] = mapped_column(Float, default=0)
+
+
+class RunbackVote(Base):
+    """The post-match "Salty Runback?" vote for a finished lobby (see runback.py).
+
+    status: open -> passed (all players said yes; new_lobby_id is the rematch) or failed (someone said
+    no, time ran out, or a player couldn't play it). votes maps player id (as a string) to True/False.
+    """
+    __tablename__ = "runback_votes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lobby_id: Mapped[int] = mapped_column(ForeignKey("lobbies.id"), unique=True)
+    status: Mapped[str] = mapped_column(String(8), default="open")
+    deadline: Mapped[float] = mapped_column(Float)
+    votes: Mapped[dict] = mapped_column(JSON, default=dict)
+    new_lobby_id: Mapped[int | None] = mapped_column(ForeignKey("lobbies.id"), nullable=True)
+    note: Mapped[str] = mapped_column(String(200), default="")  # why it failed
 
 
 class VoiceRoom(Base):

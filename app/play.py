@@ -98,9 +98,13 @@ def turn(db: Session, lobby: Lobby) -> str | None:
 
 # ---------- state transitions ----------
 def try_pop(db: Session):
-    """Start a lobby for every full group of QUEUE_SIZE players, oldest first."""
+    """Start a lobby for every full group of QUEUE_SIZE players, oldest first. Players waiting on a
+    Salty Runback vote keep their place but are skipped (runback.py)."""
+    from . import runback  # imports this module
+    held = runback.held_ids(db)
     while True:
-        entries = db.scalars(select(QueueEntry).order_by(QueueEntry.joined_at, QueueEntry.id).limit(QUEUE_SIZE)).all()
+        entries = db.scalars(select(QueueEntry).where(QueueEntry.player_id.not_in(held))
+                             .order_by(QueueEntry.joined_at, QueueEntry.id).limit(QUEUE_SIZE)).all()
         if len(entries) < QUEUE_SIZE:
             return
         s = _season(db)
@@ -229,6 +233,8 @@ def tick(db: Session) -> bool:
         changed = True
     if auth.DEV_LOGIN:
         changed = _bot_moves(db, t) or changed
+    from . import runback  # imports this module
+    changed = runback.tick(db, t) or changed
     if db.execute(delete(QueueBan).where(QueueBan.until <= t)).rowcount:
         changed = True
     if restrictions.expire_queue(db):
@@ -351,7 +357,7 @@ async def ws(websocket: WebSocket):
 # ---------- views ----------
 def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
     from .reporting import score_view
-    from . import tagpro_eu, voice  # they import this module
+    from . import runback, tagpro_eu, voice  # they import this module
     lps = _lobby_players(db, lobby)
     stats = tagpro_eu.season_stats(db, lobby.season_id, [p.id for _, p in lps])
     mine = next((lp for lp, p in lps if me and p.id == me.id), None)
@@ -371,6 +377,9 @@ def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
         "group_bot": db.scalar(select(GroupJob.status).where(GroupJob.lobby_id == lobby.id)),  # see autogroup.py
         "team_name": tagpro_eu.team_name(lobby.id),  # what to call both teams so tagpro.eu can find the game
         "score": score_view(db, lobby, me),
+        "match_id": lobby.match_id,  # its Post Match page once the score is in (postmatch.py)
+        "runback": runback.view(db, lobby, me),  # the post-match "Salty Runback?" vote
+        "runback_of": runback.runback_of(db, lobby.id),
         "voice_link": voice.voice_links(db, lobby.id).get(mine.team) if mine and mine.team else None,  # voice.py
         "me": None if not mine else {
             "team": mine.team, "is_captain": mine.is_captain, "accepted": mine.accepted,
@@ -379,11 +388,14 @@ def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
 
 
 def _my_lobby(db: Session, p: Player) -> Lobby | None:
-    """The lobby to show this player: a live one, or one that just ended in the last minute."""
+    """The lobby to show this player: a live one, or one that just ended in the last minute (or is
+    holding its Salty Runback vote)."""
+    from . import runback  # imports this module
     t = clock()
     lobby = db.scalar(select(Lobby).join(LobbyPlayer, LobbyPlayer.lobby_id == Lobby.id)
                       .where(LobbyPlayer.player_id == p.id).order_by(Lobby.id.desc()).limit(1))
-    if not lobby or (lobby.status in ("cancelled", "finished") and (lobby.deadline or 0) < t - 60):
+    if not lobby or (lobby.status in ("cancelled", "finished") and (lobby.deadline or 0) < t - 60
+                     and not runback.recently_over(db, lobby, t - 60)):
         return None
     return lobby
 

@@ -74,6 +74,8 @@ def test_matching_reports_verify_and_free_the_captains():
     assert games(f"Rep{_n}x0") == 1 and games(f"Rep{_n}x7") == 1  # Elo was updated for all 8
 
     assert report(red_cap, lid, 3, 1).status_code == 409  # already finished
+    assert "Salty Runback" in red_cap.post("/api/queue").json()["detail"]  # held until the vote is decided
+    assert blue.post(f"/api/lobbies/{lid}/runback", json={"yes": False}).status_code == 200
     assert red_cap.post("/api/queue").status_code == 200
     assert blue_cap.post("/api/queue").status_code == 200
     red_cap.delete("/api/queue"), blue_cap.delete("/api/queue")
@@ -109,6 +111,7 @@ def test_captain_can_fix_a_typo_during_a_dispute():
     assert report(red_cap, lid, 4, 2).json()["result"] == "waiting"
     assert report(blue_cap, lid, 4, 3).json()["result"] == "disputed"
     assert report(blue_cap, lid, 4, 2).json()["result"] == "verified"
+    assert blue_cap.post(f"/api/lobbies/{lid}/runback", json={"yes": False}).status_code == 200
     assert blue_cap.post("/api/queue").status_code == 200
     blue_cap.delete("/api/queue")
 
