@@ -80,6 +80,19 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .btn:hover{background:var(--line)}
 .or{color:var(--muted);font-size:11px;padding-top:30px}
 .formmsg{font-size:12px;color:var(--muted);text-align:center;margin-top:10px;min-height:1.5em}
+.qpanel{background:var(--panel);border-radius:6px;padding:16px 18px;margin-top:40px;display:grid;grid-template-columns:auto 1fr auto;gap:6px 22px;align-items:center}
+.qpanel h2{font-family:var(--display);font-weight:700;font-size:24px;margin:0;grid-column:1/-1}
+.qpanel .count{font-family:var(--display);font-weight:700;font-size:44px;line-height:1}
+.qpanel .sub{color:var(--muted);font-size:14px}
+.qpanel .count small{font-size:20px;color:var(--muted)}
+.qpanel .who{display:flex;flex-wrap:wrap;gap:6px;font-size:13px;color:var(--muted)}
+.qpanel .who span{background:var(--panel-2);color:var(--text);border-radius:999px;padding:3px 10px}
+.qpanel .who span.me{outline:1px solid var(--text)}
+.qpanel .qpips{display:flex;gap:4px;margin-bottom:8px}
+.qpanel .qpips i{width:22px;height:6px;border-radius:3px;background:var(--panel-2)}
+.qpanel .qpips i.on{background:var(--team-red)}
+.qpanel .btn{width:auto;margin:0;padding:7px 18px}
+@media (max-width:560px){.qpanel{grid-template-columns:auto 1fr}.qpanel .btn{grid-column:1/-1}}
 .glance{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:40px}
 .glance section{background:var(--panel);border-radius:6px;padding:16px 18px}
 .glance h2{font-family:var(--display);font-weight:700;font-size:24px;margin:0 0 8px}
@@ -99,8 +112,9 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .row.dim{opacity:.2}
 .row.hit{background:var(--panel-2);box-shadow:inset 3px 0 0 var(--red)}
 .rank{width:26px;text-align:right;color:var(--muted);font-size:16px;flex:none}
-.badge{flex:none;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:500;font-size:28px;
-  color:#fff;background:#18181b;border:3px solid var(--tier);box-shadow:0 0 0 2px #18181b inset}
+.badge{flex:none;min-width:58px;height:30px;padding:0 9px;border-radius:999px;display:grid;place-items:center;font-family:var(--display);font-weight:600;font-size:18px;
+  font-variant-numeric:tabular-nums;color:#fff;background:#18181b}
+.badge.new{color:#a1a1aa;font-size:14px}
 .who{min-width:0;flex:1}
 .elo{flex:none;color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
 .name{font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
@@ -116,6 +130,17 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .gap{font-size:12px;color:var(--muted);padding:10px 4px 10px 40px;border-block:1px dashed var(--line);margin:4px 0}
 .legend{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 20px;font-size:13px;color:var(--muted);margin-bottom:16px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
+.tag.title{color:#ffc800;cursor:help}
+.season-titles{margin-bottom:18px}
+.season-titles h2{font-size:24px}
+.season-titles .trow,.title-admin .trow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;border-top:1px solid var(--line);padding:8px 0;font-size:14px}
+.season-titles .trow:first-of-type{border-top:0}
+.season-titles .trow b{font-family:var(--display);font-size:17px;color:#ffc800}
+.season-titles .trow .sub,.title-admin .sub{color:var(--muted)}
+.season-titles .holder{margin-left:auto;background:none;border:0;color:var(--text);font:inherit;font-weight:600;cursor:pointer;padding:0}
+.title-admin .trow input{flex:1 1 120px;min-width:0}
+.title-admin .trow input.season{flex:0 0 56px}
+.title-admin .btn{margin:0;padding:5px 12px}
 
 /* maps */
 .maps{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:18px}
@@ -154,7 +179,7 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 dialog{border:0;border-radius:8px;background:var(--panel);color:var(--text);padding:22px 24px;width:min(360px,92vw)}
 dialog::backdrop{background:rgba(0,0,0,.6)}
 .pd{display:flex;gap:16px;align-items:center}
-.pd .badge{width:64px;height:64px;font-size:40px}
+.pd .badge{min-width:84px;height:44px;font-size:28px}
 .pd h2{margin:0;font-size:22px}
 .pd p{margin:2px 0;color:var(--muted);font-size:14px}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
@@ -353,6 +378,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   <section class="view" id="v-home">
     <p class="note" id="login-note"></p>
     <div class="auth" id="auth"></div>
+    <section class="qpanel" id="qpanel" aria-live="polite" hidden></section>
     <div class="glance">
       <section><h2>Top of the ladder</h2><ol id="g-players"></ol></section>
       <section><h2>Top-rated maps</h2><ol id="g-maps"></ol></section>
@@ -363,10 +389,9 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
     <div class="legend">
       <span><i class="dot"></i>Offense</span>
       <span><i class="dot d"></i>Defense</span>
-      <span><b class="tag og" style="font-family:var(--display)">OG</b>Played since season 1</span>
-      <span><b class="tag" style="font-family:var(--display)">S3 50</b>Reached 50 that season</span>
-      <span><b class="tag champ" style="font-family:var(--display)">S3 ★</b>Season winner</span>
+      <span><i class="dot f"></i>Flex</span>
     </div>
+    <div class="report season-titles" id="season-titles" hidden></div>
     <div class="board" id="board"></div>
   </section>
 
@@ -381,6 +406,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   </section>
 
   <section class="view" id="v-report" hidden>
+    <div class="report title-admin" id="title-admin" style="margin-bottom:18px"></div>
     <div class="report" id="disputes" style="margin-bottom:18px">
       <h2>Disputed scores</h2>
       <div id="d-list" aria-live="polite"></div>
@@ -419,8 +445,6 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
 /* ---------- helpers ---------- */
 const $ = (s,el=document)=>el.querySelector(s);
 const h = (tag,attrs={},...kids)=>{const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs)){if(v==null||v===false)continue;if(k==="class")e.className=v;else if(k==="style")e.style.cssText=v;else if(k.startsWith("on"))e.addEventListener(k.slice(2),v);else e.setAttribute(k,v===true?"":v)}for(const c of kids.flat())if(c!=null&&c!==false)e.append(c instanceof Node?c:document.createTextNode(c));return e};
-// FACEIT level colours: 1 grey, 2–3 green, 4–7 yellow, 8–9 orange, 10 red
-const tier = lv => !lv?"#52525b":lv>=10?"#fe1f00":lv>=8?"#ff6309":lv>=4?"#ffc800":lv>=2?"#1ce400":"#dddddd";
 const minus = n => String(n).replace("-","−");
 async function api(path, opts={}){
   const r = await fetch(path,{credentials:"same-origin",headers:{"Content-Type":"application/json"},...opts});
@@ -428,8 +452,10 @@ async function api(path, opts={}){
   if(!r.ok){const det=d&&d.detail;throw new Error(typeof det==="string"?det:Array.isArray(det)?det.map(x=>x.msg).join("; "):`Request failed (${r.status}).`)}
   return d;
 }
-function badge(lv,size){const b=h("div",{class:"badge",style:`--tier:${tier(lv)}`,title:lv?`Level ${lv}`:"In placements"},lv?String(lv):"–");if(size){b.style.width=b.style.height=size+"px";b.style.fontSize=Math.round(size*.62)+"px"}return b}
-const tagEls = tags => (tags||[]).map(t=>h("span",{class:"tag"+(t==="OG"?" og":t.includes("★")?" champ":"")},t));
+// A player's current Elo; null while they're still in placements
+function badge(elo,size){const b=h("div",{class:"badge"+(elo==null?" new":""),title:elo==null?"In placements":`${elo} Elo`},elo==null?"New":String(elo));if(size){b.style.height=size+"px";b.style.fontSize=Math.round(size*.5)+"px"}return b}
+// season titles an admin awarded, e.g. "S4 Champion"; hover shows the reward
+const titleEls = ts => (ts||[]).map(t=>h("span",{class:"tag title",title:t.reward?`Reward: ${t.reward}`:null},t.label));
 const posLabel = p => p==="defense"?"Defense":p==="flex"?"Flex":"Offense";
 const dotCls = p => "dot"+(p==="defense"?" d":p==="flex"?" f":"");
 const POSITIONS = [["offense","Offense"],["defense","Defense"],["flex","Flex (either)"]];
@@ -438,7 +464,7 @@ let ME={logged_in:false}, BOARD=[], MAPS=[];
 
 /* ---------- season banner ---------- */
 function renderSeason(s){
-  $("#season-pill").textContent = "Season "+s.number;
+  $("#season-pill").textContent = "Season "+s.number; SEASON_NO=s.number;
   const b=$("#banner"); b.replaceChildren();
   s.banner.split("\n").forEach((line,i)=>{ if(i) b.append(h("br")); b.append(line); });
   if(s.banner_note) b.append(" ", h("span",{class:"hi"},s.banner_note));
@@ -513,10 +539,9 @@ function renderBoard(){
   for(let c=0;c<5;c++){
     const slice=BOARD.slice(c*20,c*20+20); if(!slice.length)break;
     const col=h("div",{class:"col"});
-    slice.forEach(p=>col.append(h("button",{class:"row","data-name":p.name.toLowerCase(),onclick:()=>openPlayer(p.name),"aria-label":`${p.name}, rank ${p.rank}, level ${p.level}, ${p.elo} Elo`},
-      h("span",{class:"rank"},p.rank+"."), badge(p.level),
-      h("span",{class:"who"}, h("span",{class:"name"},p.name,h("i",{class:dotCls(p.position),title:posLabel(p.position)})), h("span",{class:"tags"},tagEls(p.tags))),
-      h("span",{class:"elo"},String(p.elo))
+    slice.forEach(p=>col.append(h("button",{class:"row","data-name":p.name.toLowerCase(),onclick:()=>openPlayer(p.name),"aria-label":`${p.name}, rank ${p.rank}, ${p.elo} Elo`},
+      h("span",{class:"rank"},p.rank+"."), badge(p.elo),
+      h("span",{class:"who"}, h("span",{class:"name"},p.name,h("i",{class:dotCls(p.position),title:posLabel(p.position)})), h("span",{class:"tags"},titleEls(p.titles))),
     )));
     board.append(col);
   }
@@ -526,15 +551,53 @@ async function openPlayer(name){
   try{
     const p=await api("/api/players/"+encodeURIComponent(name));
     const r=p.rating, rec=`${r.wins}–${r.games-r.wins}`;
-    const b=$("#pd-badge"); b.textContent=r.level||"–"; b.style.setProperty("--tier",tier(r.level));
+    $("#pd-badge").replaceWith(Object.assign(badge(r.elo),{id:"pd-badge"}));
     $("#pd-name").textContent=p.name;
     $("#pd-meta").textContent = !r.games ? `${posLabel(p.position)} · No games this season yet.`
-      : r.level ? `${posLabel(p.position)} · Level ${r.level} · ${r.elo} Elo · ${rec}`
+      : r.elo!=null ? `${posLabel(p.position)} · ${r.elo} Elo · ${rec}`
       : `${posLabel(p.position)} · Placements: ${r.placements_left} left · ${rec}`;
-    $("#pd-tags").replaceChildren(...tagEls(p.tags));
+    $("#pd-tags").replaceChildren(...titleEls(p.titles));
     $("#pd-recent").replaceChildren(...p.recent.map(m=>h("li",{},h("span",{},`${m.won?"Won":"Lost"} on ${m.map||"unknown map"}`),m.change==null?h("span",{class:"sub"},"placement"):h("span",{class:m.change>=0?"up":"down"},(m.change>=0?"+":"")+minus(m.change)))));
     if(!dlg.open) dlg.showModal();
   }catch(err){ alert(err.message); }
+}
+
+/* ---------- season titles and rewards ---------- */
+let TITLES=[], SEASON_NO=null;
+async function loadTitles(){ try{ TITLES=await api("/api/titles"); }catch{ TITLES=[]; } renderSeasonTitles(); if(current==="report") renderTitleAdmin(); }
+function renderSeasonTitles(){
+  // the Top 100 shows this season's titles: what each one rewards and who holds it
+  const box=$("#season-titles"), list=TITLES.filter(t=>t.season===SEASON_NO);
+  box.hidden=!list.length; if(!list.length){ box.replaceChildren(); return; }
+  box.replaceChildren(h("h2",{},`Season ${SEASON_NO} titles and rewards`),...list.map(t=>h("div",{class:"trow"},
+    h("b",{},t.title), t.reward?h("span",{class:"sub"},t.reward):null,
+    t.player?h("button",{class:"holder",onclick:()=>openPlayer(t.player)},t.player):h("span",{class:"holder sub",style:"cursor:default"},"Up for grabs"))));
+}
+function renderTitleAdmin(){
+  const box=$("#title-admin"), msg=h("span",{class:"formmsg","aria-live":"polite"});
+  const run=async(fn,ok)=>{ msg.textContent="Saving…"; msg.classList.remove("err");
+    try{ await fn(); await loadTitles(); BOARD=await api("/api/leaderboard"); renderBoard(); toast(ok); }
+    catch(err){ msg.textContent=err.message; msg.classList.add("err"); } };
+  const send=(path,method,body)=>api("/api/admin/titles"+path,{method,body:body&&JSON.stringify(body)});
+  const inp=(attrs)=>h("input",{type:"text",...attrs});
+  const season=inp({class:"season",type:"number",min:"1",value:String(SEASON_NO||1),"aria-label":"Season"});
+  const title=inp({placeholder:"Title, e.g. Champion",maxlength:"40",required:true,"aria-label":"Title"});
+  const reward=inp({placeholder:"Reward, e.g. Gold Discord role",maxlength:"200","aria-label":"Reward"});
+  const player=inp({list:"names",placeholder:"Player (or leave empty)",maxlength:"24","aria-label":"Awarded to"});
+  const add=h("form",{class:"trow",style:"border-top:0",onsubmit:e=>{ e.preventDefault();
+    run(()=>send("","POST",{season:+season.value,title:title.value,reward:reward.value,player:player.value||null}),`Added ${title.value}.`); }},
+    h("span",{class:"sub"},"S"),season,title,reward,player,h("button",{class:"btn"},"Add title"));
+  const rows=TITLES.map(t=>{
+    const ti=inp({value:t.title,maxlength:"40","aria-label":`Title S${t.season} ${t.title}`});
+    const re=inp({value:t.reward,maxlength:"200",placeholder:"No reward","aria-label":`Reward for ${t.title}`});
+    const pl=inp({list:"names",value:t.player||"",placeholder:"Not awarded yet",maxlength:"24","aria-label":`Holder of ${t.title}`});
+    return h("form",{class:"trow",onsubmit:e=>{ e.preventDefault(); run(()=>send(`/${t.id}`,"PATCH",{title:ti.value,reward:re.value,player:pl.value}),"Saved."); }},
+      h("span",{class:"sub",style:"flex:0 0 32px"},"S"+t.season),ti,re,pl,h("button",{class:"btn"},"Save"),
+      h("button",{class:"btn",type:"button",onclick:()=>{ if(confirm(`Delete S${t.season} ${t.title}?`)) run(()=>send(`/${t.id}`,"DELETE"),"Title deleted."); }},"Delete"));
+  });
+  box.replaceChildren(h("h2",{},"Season titles and rewards"),
+    h("p",{class:"sub",style:"margin:0 0 6px;font-size:13px"},"Set up titles for any season with what they reward, and award each to a player now or later. Awarded titles show next to the player’s name, like “S4 Champion”, and the reward shows on hover. This season’s titles are listed on the Top 100."),
+    add, ...(rows.length?rows:[h("p",{class:"sub"},"No titles yet.")]), msg);
 }
 
 /* ---------- search ---------- */
@@ -639,7 +702,7 @@ async function renderMapAdmin(){
 /* ---------- home glance ---------- */
 function renderGlance(){
   const gp=$("#g-players"); gp.replaceChildren();
-  BOARD.slice(0,5).forEach(p=>gp.append(h("li",{},badge(p.level,32),h("span",{},p.name),h("span",{class:"sub"},"#"+p.rank))));
+  BOARD.slice(0,5).forEach(p=>gp.append(h("li",{},badge(p.elo,28),h("span",{},p.name),h("span",{class:"sub"},"#"+p.rank))));
   if(!BOARD.length) gp.append(h("li",{class:"sub"},"Nobody ranked yet."));
   const gm=$("#g-maps"); gm.replaceChildren();
   const total=m=>m.votes.reduce((s,v)=>s+v.score,0);
@@ -717,6 +780,7 @@ function matchFoundAlert(){
 
 /* countdowns: any element with data-deadline is refreshed here */
 const fmt=s=>{s=Math.max(0,Math.ceil(s));return s>=60?`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`:String(s)};
+const clock=s=>{s=Math.max(0,Math.floor(s));return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`}; // time spent, always m:ss
 setInterval(()=>{
   const t=nowS();
   document.querySelectorAll("[data-deadline]").forEach(el=>{
@@ -725,11 +789,32 @@ setInterval(()=>{
     else if(el.dataset.kind==="ring"){ el.style.strokeDashoffset=String(100-100*left/total); el.closest(".ring").classList.toggle("low",low); }
     else { el.textContent=fmt(left); el.classList.toggle("low",low&&el.classList.contains("secs")); }
   });
-  document.querySelectorAll("[data-since]").forEach(el=>{el.textContent=fmt(t-+el.dataset.since)});
+  document.querySelectorAll("[data-since]").forEach(el=>{el.textContent=clock(t-+el.dataset.since)});
 },250);
+
+/* ---------- home queue panel ---------- */
+function renderQueuePanel(){
+  const box=$("#qpanel"), P=PLAY; if(!P){ box.hidden=true; return; }
+  const n=P.queue.length, need=P.size-n, me=ME.player&&ME.player.name;
+  const status = P.in_queue ? h("span",{},"You’re in the queue. Time searching: ",h("span",{"data-since":P.queued_at},clock(nowS()-P.queued_at)))
+    : n ? `${need} more player${need===1?"":"s"} needed for a match.` : "Nobody is queued right now. Be the first.";
+  let btn=null;
+  const busy=P.lobby&&LIVE.includes(P.lobby.status)&&!PLAYED.includes(P.lobby.status);
+  const locked=(P.banned_until&&P.banned_until>nowS())||P.queue_block;
+  if(P.in_queue) btn=h("button",{class:"btn",onclick:()=>playAct("/api/queue","DELETE")},"Leave queue");
+  else if(ME.player&&!busy&&!locked) btn=h("button",{class:"btn",onclick:()=>playAct("/api/queue")},"Find match");
+  box.replaceChildren(h("h2",{},"Ranked queue"),
+    h("div",{class:"count"},String(n),h("small",{},` / ${P.size}`)),
+    h("div",{},h("div",{class:"qpips","aria-hidden":"true"},...Array.from({length:P.size},(_,i)=>h("i",{class:i<n?"on":null}))),
+      h("div",{class:"sub"},status),
+      n?h("div",{class:"who",style:"margin-top:8px"},...P.queue.map(x=>h("span",{class:x===me?"me":null},x))):null),
+    btn);
+  box.hidden=false;
+}
 
 /* ---------- queue dock ---------- */
 function renderDock(){
+  renderQueuePanel();
   const d=$("#dock"), P=PLAY; if(!P){d.hidden=true;return}
   d.replaceChildren(); d.hidden=false;
   const L=P.lobby, n=P.queue.length;
@@ -760,7 +845,7 @@ function renderDock(){
     return;
   }
   if(P.in_queue){
-    d.append(h("span",{class:"live-dot"}),info("Searching…",`${n}/${P.size} in queue · `,h("span",{"data-since":P.queued_at},fmt(nowS()-P.queued_at))),pips,acts);
+    d.append(h("span",{class:"live-dot"}),info("Searching…",`${n}/${P.size} in queue · `,h("span",{"data-since":P.queued_at},clock(nowS()-P.queued_at))),pips,acts);
     if(P.dev) acts.append(h("button",{class:"pill ghost",title:"Local testing only",onclick:()=>playAct("/api/dev/fill-queue")},"Fill with bots"));
     acts.append(h("button",{class:"pill",onclick:()=>playAct("/api/queue","DELETE")},"Leave"));
     return;
@@ -809,7 +894,7 @@ const statLine=p=>{const s=p.stats;
   const per=k=>(s[k]/s.games).toFixed(1);
   return h("span",{class:"stat",title:`Per game over ${s.games} tagpro.eu game${s.games===1?"":"s"} this season. Season totals: ${s.caps} caps, ${s.returns} returns, ${mmss(s.hold)} hold`},
     h("b",{},per("caps"))," caps · ",h("b",{},per("returns"))," rets · ",h("b",{},mmss(Math.round(s.hold/s.games)))," hold per game");};
-const chip=p=>h("div",{class:"chip"},badge(p.rating,32),h("span",{class:"who"},h("span",{class:"name"},p.name,dot(p)),statLine(p)),p.is_captain&&h("span",{class:"cap",title:"Captain"},"CAPT"));
+const chip=p=>h("div",{class:"chip"},badge(p.elo,28),h("span",{class:"who"},h("span",{class:"name"},p.name,dot(p)),statLine(p)),p.is_captain&&h("span",{class:"cap",title:"Captain"},"CAPT"));
 
 function viewReady(L){
   const acc=L.players.filter(p=>p.accepted).length, mine=L.me&&L.me.accepted;
@@ -837,7 +922,7 @@ function viewDraft(L){
     return h("section",{class:"team "+t,"aria-label":teamName(t)+" team"},h("h3",{},teamName(t),h("small",{},`${o} O · ${d} D`+(f?` · ${f} Flex`:""))),
       ...ps.map(chip),...Array.from({length:size-ps.length},()=>h("div",{class:"chip empty"},"Open slot")));
   };
-  const pool=L.players.filter(p=>!p.team).sort((a,b)=>b.rating-a.rating);
+  const pool=L.players.filter(p=>!p.team).sort((a,b)=>b.elo-a.elo);
   return [
     popHead(L,"Captains draft",mine?"Your pick. Choose a player for your team.":`${cap?cap.name:"The captain"} is picking for ${teamName(L.turn)}…`,{timer:true,go:mine}),
     timerBar(L),
@@ -845,8 +930,8 @@ function viewDraft(L){
       h("ol",{class:"order","aria-label":"Pick order"},...L.pick_order.map((t,i)=>h("li",{class:`${t}${i<done?" done":""}${i===done?" now":""}`,title:`Pick ${i+1}: ${teamName(t)}`},String(i+1)))),
       h("div",{class:"draft"},team("red"),
         h("section",{class:"pool"},h("h3",{},"Player pool",h("small",{},`${pool.length} left`)),
-          ...pool.map(p=>h("button",{class:"pick",disabled:!mine,onclick:()=>act(L,"pick",{name:p.name}),"aria-label":`Pick ${p.name}, ${posLabel(p.position)}, rating ${p.rating}`},
-            badge(p.rating,38),h("span",{class:"who"},h("span",{class:"name"},p.name,dot(p)),h("span",{class:"tags"},posLabel(p.position)),statLine(p)),
+          ...pool.map(p=>h("button",{class:"pick",disabled:!mine,onclick:()=>act(L,"pick",{name:p.name}),"aria-label":`Pick ${p.name}, ${posLabel(p.position)}, ${p.elo} Elo`},
+            badge(p.elo,32),h("span",{class:"who"},h("span",{class:"name"},p.name,dot(p)),h("span",{class:"tags"},posLabel(p.position)),statLine(p)),
             h("span",{class:"go"},"Pick →")))),
         team("blue"))),
   ];
@@ -1031,7 +1116,7 @@ function go(v,push=true){
   VIEWS.forEach(x=>{$("#v-"+x).hidden=x!==v});
   document.querySelectorAll("nav a").forEach(a=>{ if(a.dataset.go===v)a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
   document.title="Ranked PUGs – "+({home:"Home",top100:"Leaderboard",maps:"Maps",rules:"Rules",report:"Report a match"})[v];
-  if(v==="report"){ setupReport(); renderDisputes(); }
+  if(v==="report"){ setupReport(); renderDisputes(); renderTitleAdmin(); }
   if(push && location.hash!=="#"+v) history.replaceState(null,"","#"+v);
 }
 document.addEventListener("click",e=>{const t=e.target.closest("[data-go]");if(t){e.preventDefault();go(t.dataset.go)}});
@@ -1044,7 +1129,7 @@ window.addEventListener("hashchange",()=>go(location.hash.slice(1),false));
     const [season] = await Promise.all([api("/api/season"), refreshMe()]);
     renderSeason(season);
     [BOARD,MAPS] = await Promise.all([api("/api/leaderboard"),api("/api/maps")]);
-    renderBoard(); renderMaps(); renderGlance(); loadRules();
+    renderBoard(); renderMaps(); renderGlance(); loadRules(); loadTitles();
     await refreshPlay(); connectLive();
   }catch(err){
     $("main").prepend(h("p",{class:"empty err"},err.message));

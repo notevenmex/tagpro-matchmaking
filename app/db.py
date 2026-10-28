@@ -9,7 +9,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 
 def database_url(raw: str) -> str:
-    """Use the psycopg 3 driver for Postgres URLs written the way Railway and Heroku hand them out."""
+    """Use the psycopg 3 driver for Postgres URLs written the way Render, Railway and Heroku hand them out."""
     for prefix in ("postgres://", "postgresql://"):
         if raw.startswith(prefix):
             return "postgresql+psycopg://" + raw[len(prefix):]
@@ -40,6 +40,18 @@ class Season(Base):
     banner: Mapped[str] = mapped_column(String(500), default="")       # main banner text (use \n for a new line)
     banner_note: Mapped[str] = mapped_column(String(500), default="")  # highlighted part shown in yellow
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class SeasonTitle(Base):
+    """A title an admin sets up for a season (e.g. "Champion"), with its reward, and the player who
+    holds it once it's awarded. season is the season number, so past seasons work too."""
+    __tablename__ = "season_titles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    season: Mapped[int] = mapped_column(Integer, index=True)
+    title: Mapped[str] = mapped_column(String(40))
+    reward: Mapped[str] = mapped_column(String(200), default="")
+    player_id: Mapped[int | None] = mapped_column(ForeignKey("players.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class SiteText(Base):

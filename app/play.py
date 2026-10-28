@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from . import auth, restrictions
 from .db import (GroupJob, Lobby, LobbyPlayer, Map, Player, QueueBan, QueueEntry, Rating, Season,
                  SessionLocal, get_db)
-from .rating import START_ELO, level
+from .rating import START_ELO
 
 log = logging.getLogger("rankedpugs")
 
@@ -349,7 +349,7 @@ def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
     return {
         "id": lobby.id, "status": lobby.status, "deadline": lobby.deadline, "note": lobby.note,
         "turn": t, "pick_order": PICK_ORDER, "step_seconds": STEP_SECONDS.get(lobby.status),
-        "players": [{"name": p.tagpro_name, "position": p.position, "rating": level(lp.elo), "elo": round(lp.elo), "tags": p.tags or [],
+        "players": [{"name": p.tagpro_name, "position": p.position, "elo": round(lp.elo), "tags": p.tags or [],
                      "accepted": lp.accepted, "team": lp.team, "is_captain": lp.is_captain, "pick_no": lp.pick_no,
                      "stats": stats.get(p.id)}  # season totals from tagpro.eu (tagpro_eu.py)
                     for lp, p in lps],
