@@ -93,6 +93,16 @@ bot waits in the group until a captain joins, makes them leader, and leaves. If 
 few times, the captains get a DM asking the red captain to make the group and paste the link on the
 match page. Research notes, settings and known risks: [docs/tagpro-groups.md](docs/tagpro-groups.md).
 
+## Results and stats from tagpro.eu
+
+Once a game is played, the site looks it up on [tagpro.eu](https://tagpro.eu) and uses it to set the
+final score and update Elo, so captains usually don't report anything. Each player's caps, returns
+and hold time are saved too, and their season totals show next to their name in the draft and match
+pop-ups. The group bot names the group `PUG #<match>` and both teams `PUG<match>`, which is how the
+game is found. tagpro.eu only has a game if someone in it runs the tagpro.eu userscript; if nothing
+turns up within 25 minutes, the captains report the score as before. Details and caveats:
+[docs/tagpro-eu.md](docs/tagpro-eu.md).
+
 ## Team voice channels
 
 Voice is required in matches. When the draft ends, the same Discord bot creates **Red** and **Blue**

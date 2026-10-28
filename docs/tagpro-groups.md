@@ -31,7 +31,9 @@ increment in OT), 100% accel/top speed/bounce, default respawn timers (3s player
 indicators on, all powerups on, gravity off. Plus the drafted map, the voted server, and a private
 (not publicly listed) group with private games.
 
-Overrides: `TAGPRO_GROUP_SETTINGS` (JSON), `TAGPRO_GROUP_PRESET` (pick a preset on the create form
+The group is named `PUG #<match id>` and both teams `PUG<match id>`, so the game can be found on
+tagpro.eu afterwards (see [tagpro-eu.md](tagpro-eu.md)). Overrides: `TAGPRO_GROUP_NAME`, `TAGPRO_TEAM_NAME`,
+`TAGPRO_GROUP_SETTINGS` (JSON), `TAGPRO_GROUP_PRESET` (pick a preset on the create form
 by label), `TAGPRO_SERVER_MAP` (our server names to TagPro's labels).
 
 ## No-kiss

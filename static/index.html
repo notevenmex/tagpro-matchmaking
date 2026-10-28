@@ -255,6 +255,8 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
 .team h3{color:var(--tc)}
 .chip{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px;background:var(--panel);margin-top:6px;min-height:46px;animation:rise .3s var(--ease)}
 .chip .name{font-size:15px}
+.stat{display:block;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.stat b{color:var(--text);font-weight:600}
 .chip.empty{justify-content:center;background:transparent;border:1px dashed var(--line);color:var(--muted);font-size:12px;animation:none}
 .cap{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--banner-hi);background:#1d1d1f;border-radius:6px;padding:2px 6px}
 .pool{display:grid;gap:8px;align-content:start}
@@ -636,8 +638,8 @@ setInterval(()=>{ if(document.visibilityState==="visible") refreshPlay(); },1500
 let toastTimer=null;
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>{t.hidden=true},6500); }
 async function playAct(path,method="POST",body){
-  try{ await api(path,{method,body:body?JSON.stringify(body):undefined}); await refreshPlay(); }
-  catch(err){ toast(err.message); }
+  try{ await api(path,{method,body:body?JSON.stringify(body):undefined}); await refreshPlay(); return true; }
+  catch(err){ toast(err.message); return false; }
 }
 const act=(L,verb,body)=>playAct(`/api/lobbies/${L.id}/${verb}`,"POST",body||{});
 
@@ -738,7 +740,14 @@ function popHead(L,title,sub,{closable=true,timer=false,go=false}={}){
       closable && h("button",{class:"x","aria-label":"Minimize",title:"Minimize",onclick:dismissLobby},"×")));
 }
 const timerBar=L=>L.deadline&&h("div",{class:"timer","aria-hidden":"true"},h("i",{"data-deadline":L.deadline,"data-total":L.step_seconds,"data-kind":"bar",style:`width:${100*Math.max(0,L.deadline-nowS())/L.step_seconds}%`}));
-const chip=p=>h("div",{class:"chip"},badge(p.rating,32),h("span",{class:"name"},p.name,dot(p)),p.is_captain&&h("span",{class:"cap",title:"Captain"},"CAPT"));
+/* season caps, returns and hold time from the player's tagpro.eu-read games */
+const mmss=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+const statLine=p=>{const s=p.stats;
+  if(!s) return h("span",{class:"stat",title:"No games read from tagpro.eu this season yet"},"No stats yet");
+  const per=k=>(s[k]/s.games).toFixed(1);
+  return h("span",{class:"stat",title:`Season totals from ${s.games} tagpro.eu game${s.games===1?"":"s"}. Per game: ${per("caps")} caps, ${per("returns")} returns, ${mmss(Math.round(s.hold/s.games))} hold`},
+    h("b",{},String(s.caps))," caps · ",h("b",{},String(s.returns))," rets · ",h("b",{},mmss(s.hold))," hold");};
+const chip=p=>h("div",{class:"chip"},badge(p.rating,32),h("span",{class:"who"},h("span",{class:"name"},p.name,dot(p)),statLine(p)),p.is_captain&&h("span",{class:"cap",title:"Captain"},"CAPT"));
 
 function viewReady(L){
   const acc=L.players.filter(p=>p.accepted).length, mine=L.me&&L.me.accepted;
@@ -775,7 +784,7 @@ function viewDraft(L){
       h("div",{class:"draft"},team("red"),
         h("section",{class:"pool"},h("h3",{},"Player pool",h("small",{},`${pool.length} left`)),
           ...pool.map(p=>h("button",{class:"pick",disabled:!mine,onclick:()=>act(L,"pick",{name:p.name}),"aria-label":`Pick ${p.name}, ${posLabel(p.position)}, rating ${p.rating}`},
-            badge(p.rating,38),h("span",{class:"who"},h("span",{class:"name"},p.name,dot(p)),h("span",{class:"tags"},posLabel(p.position))),
+            badge(p.rating,38),h("span",{class:"who"},h("span",{class:"name"},p.name,dot(p)),h("span",{class:"tags"},posLabel(p.position)),statLine(p)),
             h("span",{class:"go"},"Pick →")))),
         team("blue"))),
   ];
@@ -825,7 +834,7 @@ function viewMatch(L){
     const inp=h("input",{type:"url",required:true,placeholder:"https://tagpro.koalabeast.com/groups/…","aria-label":"TagPro group link",value:GROUP_DRAFT||L.group_link||"",oninput:e=>{GROUP_DRAFT=e.target.value}});
     const f=h("form",{},inp,h("button",{class:"pill primary"},L.group_link?"Update":"Share"));
     f.addEventListener("submit",async e=>{e.preventDefault(); await act(L,"group",{link:inp.value}); GROUP_DRAFT="";});
-    group.append(h("span",{class:"muted"},L.group_link?"Wrong link? Paste the right one.":"You’re the red captain: create a private group on TagPro and paste its link here."),f);
+    group.append(h("span",{class:"muted"},L.group_link?"Wrong link? Paste the right one.":`You’re the red captain: create a private group on TagPro and paste its link here. Name both teams ${L.team_name} so the score can be read from tagpro.eu.`),f);
   } else if(!L.group_link) group.append(h("span",{class:"muted"},`Waiting for ${red?red.name:"the red captain"} to create the TagPro group…`));
   const sub={in_progress:"Good luck, have fun.",disputed:"The captains reported different scores.",finished:"Thanks for playing."}[L.status]||"Teams and map are locked in.";
   return [
@@ -842,9 +851,22 @@ function scoreBox(L){
   const line=(r,b)=>`Red ${r} – ${b} Blue`;
   if(S.final){
     const F=S.final;
+    const how={admin:"Score set by an admin.",captains:"Both captains confirmed it.","tagpro.eu":"Score from tagpro.eu."}[F.verified_by];
     box.append(h("b",{class:"final"},line(F.red_score,F.blue_score)),
-      h("span",{class:"muted"},`${teamName(F.winner)} wins. `+(F.verified_by==="admin"?"Score set by an admin.":"Both captains confirmed it.")));
+      h("span",{class:"muted"},`${teamName(F.winner)} wins. ${how} `,F.tagpro_eu&&h("a",{href:F.tagpro_eu,target:"_blank",rel:"noopener"},"Match stats")));
     return box;
+  }
+  const E=S.tagpro_eu, waitEU=E&&E.captains_wait_until;
+  if(waitEU){
+    const at=new Date(waitEU*1000).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+    box.append(h("span",{class:"muted",style:"display:flex;align-items:center;justify-content:center;gap:8px"},h("span",{class:"live-dot"}),"Looking for this game on tagpro.eu…"),
+      h("span",{class:"muted"},`The score fills in by itself once the game shows up on tagpro.eu (someone in the game needs the tagpro.eu userscript). If it isn’t there by ${at}, the captains report it here.`));
+  }
+  if(E&&E.can_hint&&["searching","gave_up"].includes(E.status)){
+    const inp=h("input",{type:"url",required:true,placeholder:"https://tagpro.eu/?match=…","aria-label":"tagpro.eu match link"});
+    const f=h("form",{},inp,h("button",{class:"pill"},"Use it"));
+    f.addEventListener("submit",async e=>{e.preventDefault(); if(await act(L,"tagpro-eu",{link:inp.value})) toast("Thanks. Checking that tagpro.eu match…");});
+    box.append(h("span",{class:"muted"},"Have the game’s tagpro.eu link? Paste it to speed things up."),f);
   }
   if(L.status==="disputed") box.append(h("span",{},"Disputed: the captains’ scores don’t match. An admin will review it."));
   const mine=L.me&&L.me.team, reported=S.reported.includes(mine);
@@ -857,7 +879,8 @@ function scoreBox(L){
     f.addEventListener("submit",async e=>{e.preventDefault(); await act(L,"report",{red_score:+d.red,blue_score:+d.blue});});
     box.append(h("span",{class:"muted"},reported?(L.status==="disputed"?"Made a typo? Fix your score and it clears if it now matches.":"Waiting for the other captain to confirm."):"Captains: enter the final score once the game ends. You can queue again when both scores match."),f);
   } else if(L.status==="in_progress"){
-    box.append(h("span",{class:"muted"},S.reported.length?`${S.reported.length} of 2 captains reported the score.`:"The captains report the score when the game ends. You can queue again now."));
+    if(!waitEU) box.append(h("span",{class:"muted"},S.reported.length?`${S.reported.length} of 2 captains reported the score.`:"The captains report the score when the game ends. You can queue again now."));
+    else box.append(h("span",{class:"muted"},"You can queue again now."));
   }
   return box;
 }

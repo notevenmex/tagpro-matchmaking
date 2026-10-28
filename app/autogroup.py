@@ -16,7 +16,7 @@ from typing import Protocol
 
 from sqlalchemy import select
 
-from . import play
+from . import play, tagpro_eu
 from .db import GroupJob, Lobby, LobbyPlayer, Map, Player, SessionLocal
 from .discord_bot import DiscordNotifier
 from .tagpro_group import Captain, GroupError, GroupSpec, PlaywrightGroupCreator
@@ -84,6 +84,7 @@ def save_link(lobby_id: int, link: str) -> bool:
         ok = lobby.status == "awaiting_group" and lobby.group_link is None
         if ok:
             lobby.group_link, lobby.status = link, "in_progress"
+            tagpro_eu.game_started(db, lobby)
         db.commit()
     if ok:
         play.bump()
