@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, maps_admin, pages, play, postmatch, reporting, runback, titles
+from . import auth, chat, maps_admin, pages, play, postmatch, reporting, runback, titles
 from .db import Base, Map, MapVote, Player, Rating, Season, engine, get_db
 from .rating import PLACEMENT_MULTIPLIER, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, rating_out, record_match
 
@@ -30,6 +30,7 @@ app.include_router(postmatch.router)
 app.include_router(pages.router)
 app.include_router(maps_admin.router)
 app.include_router(titles.router)
+app.include_router(chat.router)
 Base.metadata.create_all(engine)
 
 Position = Literal["offense", "defense"]               # what someone played in a given match

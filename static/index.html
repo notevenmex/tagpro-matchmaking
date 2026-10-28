@@ -434,6 +434,33 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
 .group.score .final{font-family:var(--display);font-size:24px}
 .team-red{color:var(--team-red);font-weight:600}.team-blue{color:var(--team-blue);font-weight:600}
 .group input{flex:1;min-width:0;font:inherit;font-size:14px;background:var(--input);color:var(--text);border:0;border-radius:999px;padding:9px 14px}
+/* lobby chat: All and Team tabs under the match pop-up, and the admin chat log */
+.chat{flex:none;border-top:1px solid var(--line);padding:10px 22px 14px;display:grid;gap:8px}
+.chat .ctabs{display:flex;align-items:center;gap:6px}
+.chat .ctabs button{font:inherit;font-size:13px;font-weight:600;border:0;border-radius:999px;padding:5px 12px;background:transparent;color:var(--muted);cursor:pointer}
+.chat .ctabs button[aria-selected="true"]{background:var(--panel-2);color:var(--text)}
+.chat .ctabs button.unread::after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-left:6px;vertical-align:middle}
+.chat .ctabs .note{margin-left:auto;font-size:12px;color:var(--muted)}
+.chat .clog{max-height:min(170px,24vh);overflow-y:auto;font-size:14px;line-height:1.4;display:grid;gap:2px;align-content:start;overflow-wrap:anywhere}
+.chat .clog p{margin:0;display:flex;gap:6px;align-items:baseline}
+.chat .clog p.hidden{opacity:.5;text-decoration:line-through}
+.chat .clog .who{flex:none;font-weight:600}
+.chat .clog .who.admin{color:#ffc800}
+.chat .clog .mod{margin-left:auto;flex:none;font:inherit;font-size:11px;border:0;background:none;color:var(--muted);cursor:pointer;text-decoration:underline}
+.chat .clog .empty{color:var(--muted);font-size:13px}
+.chat form{display:flex;gap:8px}
+.chat form[hidden]{display:none}
+.chat input{flex:1;min-width:0;font:inherit;font-size:14px;background:var(--input);color:var(--text);border:0;border-radius:999px;padding:8px 14px}
+.chat form .pill{padding:8px 16px}
+.report .chat,.pm-chat .chat{padding:10px 0 0}
+.pm-chat{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+.pm-chat h3{margin:0;font-family:var(--display);font-size:22px}
+.pm-chat .chat{border-top:0}
+.pm-chat .chat .clog{max-height:360px}
+.report .chat .clog{max-height:420px}
+.chat-admin .pick-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+.chat-admin form.mute{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.chat-admin input{font:inherit;font-size:14px}
 @media (prefers-reduced-motion:reduce){
   .dock,.toast,dialog.pop[open],.chip,.live-dot{animation:none}
   .pill,.pick,.vmap,.accepts i,.timer i,.ring .prog{transition:none}
@@ -512,6 +539,7 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
   <section class="view" id="v-report" hidden>
     <form class="report announce-admin" id="announce-admin" style="margin-bottom:18px"></form>
     <div class="report title-admin" id="title-admin" style="margin-bottom:18px"></div>
+    <div class="report chat-admin" id="chat-admin" style="margin-bottom:18px"></div>
     <div class="report" id="disputes" style="margin-bottom:18px">
       <h2>Disputed scores</h2>
       <div id="d-list" aria-live="polite"></div>
@@ -767,7 +795,8 @@ async function renderMatchPage(id){
     const D=MATCHES[id]&&MATCHES[id].id===+id?MATCHES[id]:await loadMatch(id);
     const title=D.lobby_id?`PUG #${D.lobby_id}`:`Match ${D.id}`;
     document.title=`Ranked PUGs – ${title}`;
-    box.replaceChildren(h("p",{class:"eyebrow"},"Post match"),h("h2",{style:"margin:0 0 12px"},title+(D.runback_of?` · Salty Runback of PUG #${D.runback_of}`:"")),...postMatchBody(D));
+    box.replaceChildren(h("p",{class:"eyebrow"},"Post match"),h("h2",{style:"margin:0 0 12px"},title+(D.runback_of?` · Salty Runback of PUG #${D.runback_of}`:"")),...postMatchBody(D),
+      ...(D.lobby_id?[h("div",{class:"pm-chat"},h("h3",{},"Match chat"),MATCH_CHAT.show(D.lobby_id))]:[]));
   }catch(err){ box.replaceChildren(h("p",{class:"empty err"},err.message)); }
 }
 // the "Match over" pop-up is the Post Match page for the lobby's match
@@ -1077,7 +1106,7 @@ let wsDelay=1000;
 function connectLive(){
   let ws; try{ ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws"); }catch{ return; }
   ws.onopen=()=>{wsDelay=1000};
-  ws.onmessage=schedulePlay;
+  ws.onmessage=e=>{ let m=null; try{m=JSON.parse(e.data)}catch{} if(m&&m.type==="chat") onChatPing(m.lobby); else schedulePlay(); };
   ws.onclose=()=>{ setTimeout(connectLive,wsDelay); wsDelay=Math.min(wsDelay*2,15000); };
 }
 setInterval(()=>{ if(document.visibilityState==="visible") refreshPlay(); },15000); // safety net if the socket drops quietly
@@ -1162,7 +1191,8 @@ function renderDock(){
   const info=(label,...sub)=>h("div",{},h("div",{class:"label"},label),h("div",{class:"sub"},...sub));
   const acts=h("div",{class:"acts"});
   if(L && LIVE.includes(L.status) && !PLAYED.includes(L.status)){
-    d.append(h("span",{class:"live-dot"}),info(STEP[L.status],`Match #${L.id}`),h("div",{class:"acts"},h("button",{class:"pill primary",onclick:openLobby},"Open")));
+    const unread=LOBBY_CHAT.id===L.id?LOBBY_CHAT.unread():0;
+    d.append(h("span",{class:"live-dot"}),info(STEP[L.status],`Match #${L.id}`),h("div",{class:"acts"},h("button",{class:"pill primary",onclick:openLobby},"Open",unread?` · ${unread} new`:"")));
     return;
   }
   if(L && PLAYED.includes(L.status)) acts.append(h("button",{class:"pill ghost",onclick:openLobby},`Match #${L.id}`));
@@ -1195,6 +1225,100 @@ function renderDock(){
   acts.append(h("button",{class:"pill primary",onclick:()=>playAct("/api/queue")},"Find match"));
 }
 
+/* ---------- lobby chat (app/chat.py): All chat for the 8 players, Team chat once you're on a team ---------- */
+const CHAT_FROM=["drafting","map_veto","server_vote","awaiting_group","in_progress","disputed","finished"];
+// One chat box that keeps its element (and what you typed) while the pop-up around it re-renders.
+function makeChat(){
+  const st={id:null,data:null,tab:"all",seen:{},busy:false,again:false};
+  const tabs=h("div",{class:"ctabs",role:"tablist","aria-label":"Chat channel"});
+  const log=h("div",{class:"clog",role:"log","aria-live":"polite","aria-label":"Chat messages"});
+  const inp=h("input",{type:"text",autocomplete:"off",enterkeyhint:"send","aria-label":"Chat message"});
+  const send=h("button",{class:"pill primary"},"Send");
+  const form=h("form",{},inp,send);
+  st.el=h("section",{class:"chat","aria-label":"Match chat"},tabs,log,form);
+  form.addEventListener("submit",async e=>{
+    e.preventDefault(); const text=inp.value.trim(); if(!text||!st.id) return;
+    send.disabled=true;
+    try{ await api(`/api/lobbies/${st.id}/chat`,{method:"POST",body:JSON.stringify({channel:st.tab==="all"?"all":"team",body:text})}); inp.value=""; await st.load(); }
+    catch(err){ toast(err.message); }
+    send.disabled=false; inp.focus();
+  });
+  const label=ch=>ch==="all"?"All":(st.data.channels.length===2?"Team":teamName(ch));
+  st.unread=()=>{ if(!st.data) return 0; return st.data.messages.filter(m=>!m.mine&&m.id>(st.seen[m.channel]||0)).length; };
+  st.render=()=>{
+    const D=st.data; if(!D) return;
+    if(!D.channels.includes(st.tab)) st.tab="all";
+    const visible=st.el.getClientRects().length>0&&!document.hidden; // not while the pop-up is minimized
+    if(visible){ const last=D.messages.filter(m=>m.channel===st.tab).pop(); if(last) st.seen[st.tab]=Math.max(st.seen[st.tab]||0,last.id); }
+    tabs.replaceChildren(...D.channels.map(ch=>{
+      const unread=D.messages.some(m=>m.channel===ch&&!m.mine&&m.id>(st.seen[ch]||0));
+      return h("button",{type:"button",role:"tab","aria-selected":String(ch===st.tab),class:(ch!==st.tab&&unread?"unread ":"")+(ch!=="all"?"team-"+ch:""),
+        onclick:()=>{st.tab=ch; st.render();}},label(ch));
+    }), h("span",{class:"note"},D.muted_until?"You’re muted from chat.":!D.open?"Chat is closed.":!D.can_send.includes(st.tab)?"":st.tab!=="all"?"Only your team sees this.":"Everyone in the match sees this."));
+    const near=log.scrollHeight-log.scrollTop-log.clientHeight<40;
+    const lines=D.messages.filter(m=>m.channel===st.tab);
+    log.replaceChildren(...(lines.length?lines.map(m=>h("p",{class:m.hidden?"hidden":null,title:new Date(m.at*1000).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})},
+      h("span",{class:"who "+(m.admin?"admin":m.team?"team-"+m.team:"")},(m.admin?"[Admin] ":"")+m.name+":"),h("span",{},m.body),
+      D.is_admin&&h("button",{class:"mod",type:"button",onclick:()=>st.hide(m)},m.hidden?"Unhide":"Hide"))):[h("p",{class:"empty"},!D.open?"Nobody chatted here.":st.tab==="all"?"No messages yet. Say glhf.":"No team messages yet.")]));
+    if(near) log.scrollTop=log.scrollHeight;
+    const can=D.can_send.includes(st.tab);
+    form.hidden=!can; inp.maxLength=D.max_len;
+    inp.placeholder=st.tab==="all"?"Message everyone…":`Message ${label(st.tab).toLowerCase()==="team"?"your team":teamName(st.tab)}…`;
+    if(st.onchange) st.onchange();
+  };
+  st.load=async()=>{
+    if(!st.id) return;
+    if(st.busy){ st.again=true; return; }
+    st.busy=true; const id=st.id;
+    try{ const D=await api(`/api/lobbies/${id}/chat`);
+      if(id===st.id){
+        if(!st.data) for(const m of D.messages) st.seen[m.channel]=Math.max(st.seen[m.channel]||0,m.id); // only count lines that arrive from now on
+        st.data=D; st.render();
+      } }
+    catch(err){ if(id===st.id&&!st.data) log.replaceChildren(h("p",{class:"empty"},err.message)); }
+    st.busy=false; if(st.again){ st.again=false; st.load(); }
+  };
+  st.hide=async m=>{ try{ await api(`/api/chat/${m.id}/hide`,{method:"POST",body:JSON.stringify({hidden:!m.hidden})}); await st.load(); }catch(err){ toast(err.message); } };
+  st.show=id=>{
+    if(st.id!==id){ st.id=id; st.data=null; st.tab="all"; st.seen={}; inp.value=""; tabs.replaceChildren(); form.hidden=true; log.replaceChildren(h("p",{class:"empty"},"Loading chat…")); }
+    st.load(); return st.el;
+  };
+  return st;
+}
+const LOBBY_CHAT=makeChat(), ADMIN_CHAT=makeChat(), MATCH_CHAT=makeChat(); // pop-up, Report page, /match/<id> page
+LOBBY_CHAT.onchange=()=>{ if(!$("#lobby").open) renderDock(); };
+function onChatPing(id){ for(const c of [LOBBY_CHAT,ADMIN_CHAT,MATCH_CHAT]) if(c.id===id) c.load(); }
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&LOBBY_CHAT.data) LOBBY_CHAT.render(); });
+
+/* admins: read any match's chat (team chat too), hide lines, post in All chat while it's open, and mute players */
+async function renderChatAdmin(){
+  const box=$("#chat-admin");
+  const num=h("input",{type:"number",min:1,required:true,placeholder:"PUG #","aria-label":"Match number",style:"width:110px"});
+  const pick=h("form",{class:"pick-row"},num,h("button",{class:"pill"},"Open chat"));
+  const recent=h("div",{class:"pick-row"});
+  const open=id=>{ num.value=id; holder.replaceChildren(ADMIN_CHAT.show(id)); };
+  pick.addEventListener("submit",e=>{e.preventDefault(); open(+num.value);});
+  const holder=h("div",{});
+  const who=h("input",{type:"text",required:true,placeholder:"TagPro name","aria-label":"Player to mute",list:"names"});
+  const mins=h("select",{"aria-label":"Mute length"},...[[60,"1 hour"],[1440,"1 day"],[10080,"1 week"],[0,"Unmute"]].map(([v,t])=>h("option",{value:v},t)));
+  const why=h("input",{type:"text",maxlength:200,placeholder:"Reason (shown to them)","aria-label":"Mute reason"});
+  const mutes=h("div",{class:"sub",style:"font-size:13px"});
+  const mute=h("form",{class:"mute"},"Mute",who,"for",mins,why,h("button",{class:"pill"},"Save"));
+  const loadMutes=async()=>{ try{ const L=await api("/api/chat/mutes");
+    mutes.replaceChildren(L.length?"Muted now: "+L.map(m=>`${m.names.join(" / ")} until ${new Date(m.until*1000).toLocaleString()}${m.reason?` (${m.reason})`:""}`).join("; "):"Nobody is muted."); }catch{} };
+  mute.addEventListener("submit",async e=>{e.preventDefault();
+    try{ await api("/api/chat/mute",{method:"POST",body:JSON.stringify({name:who.value,minutes:+mins.value,reason:why.value})}); toast(+mins.value?`${who.value} is muted from chat.`:`${who.value} can chat again.`); who.value=why.value=""; loadMutes(); }
+    catch(err){ toast(err.message); }});
+  box.replaceChildren(h("h2",{},"Match chat"),
+    h("p",{class:"draft"},"Read any match’s All and Team chat. Hidden lines only show for admins. While a match is live you can post in its All chat."),
+    pick,recent,holder,mute,mutes);
+  if(ADMIN_CHAT.id) holder.replaceChildren(ADMIN_CHAT.show(ADMIN_CHAT.id));
+  loadMutes();
+  try{ const R=await api("/api/chat/recent");
+    recent.replaceChildren(...(R.length?[h("span",{class:"sub"},"Recent:"),...R.map(r=>h("button",{class:"pill ghost",type:"button",title:`${r.lines} lines · ${STEP[r.status]||r.status}`,onclick:()=>open(r.lobby_id)},`#${r.lobby_id}`))]:[]));
+  }catch{}
+}
+
 /* ---------- lobby pop-up ---------- */
 function openLobby(){ const L=PLAY&&PLAY.lobby; if(!L)return; dismissed.delete(lobbyKey(L)); saveDismissed(); renderLobby(); }
 function dismissLobby(){
@@ -1210,12 +1334,17 @@ function renderLobby(){
   const key=lobbyKey(L), fresh=key!==LAST_KEY; LAST_KEY=key;
   if(L.status==="cancelled"){ if(fresh) toast(L.note||"The match was cancelled."); if(dlg.open)dlg.close(); renderDock(); return; }
   if(fresh && L.status==="ready_check" && !L.me?.accepted) matchFoundAlert();
+  if(CHAT_FROM.includes(L.status)) LOBBY_CHAT.show(L.id); // keeps the chat loaded, so the dock can count new lines while minimized
   if(dismissed.has(key) && L.status!=="ready_check"){ if(dlg.open)dlg.close(); return; }
   const view={ready_check:viewReady,drafting:viewDraft,map_veto:viewVeto,server_vote:viewServer,awaiting_group:viewMatch,in_progress:viewMatch,disputed:viewMatch,finished:L.match_id?viewPostMatch:viewMatch}[L.status];
   if(!view) return;
   const keepScroll=$(".pop-body",dlg)?.scrollTop||0;
+  const chat=CHAT_FROM.includes(L.status)&&LOBBY_CHAT.el, typing=chat&&chat.contains(document.activeElement)&&document.activeElement;
   dlg.className="pop "+({ready_check:"",server_vote:"",drafting:"lg",map_veto:"md",awaiting_group:"md",in_progress:"md",disputed:"md",finished:"md"})[L.status];
-  dlg.replaceChildren(...view(L).filter(Boolean));
+  const parts=view(L).filter(Boolean), foot=parts.findIndex(x=>x.classList.contains("pop-foot"));
+  if(chat) parts.splice(foot<0?parts.length:foot,0,chat);
+  dlg.replaceChildren(...parts);
+  if(typing) typing.focus();
   if(!fresh){ const b=$(".pop-body",dlg); if(b) b.scrollTop=keepScroll; }
   if(!dlg.open) dlg.showModal();
 }
@@ -1477,7 +1606,7 @@ function go(v,push=true){
   document.querySelectorAll("nav a").forEach(a=>{ if(a.dataset.go===v)a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
   document.title="Ranked PUGs – "+({home:"Home",top100:"Leaderboard",maps:"Maps",ratings:"Map ratings",rules:"Rules",report:"Report a match",match:"Match"})[v];
   if(v==="match"){ $("#match-page").replaceChildren(h("p",{class:"draft"},"Loading the match…")); renderMatchPage(MATCH_ID); window.scrollTo(0,0); }
-  if(v==="report"){ setupReport(); renderDisputes(); renderTitleAdmin(); renderAnnounceAdmin(); }
+  if(v==="report"){ setupReport(); renderChatAdmin(); renderDisputes(); renderTitleAdmin(); renderAnnounceAdmin(); }
   if(v==="ratings") renderRatings();
   const hash=v==="match"?"match/"+MATCH_ID:v;
   if(push && location.hash!=="#"+hash) history.replaceState(null,"","#"+hash);
