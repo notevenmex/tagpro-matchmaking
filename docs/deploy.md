@@ -94,7 +94,7 @@ in the web service's **Environment** tab, then save, which redeploys:
    errors, change the instance type to the 2 GB plan ($25 a month).
 3. **Team voice channels:** the Blueprint already sets `VOICE_CHANNELS=1`. Fill in `VOICE_CATEGORY_ID`,
    `VOICE_LOBBY_CHANNEL_ID` and `VOICE_STAFF_ROLE_ID` if you left them blank. The optional settings
-   and their defaults are `VOICE_GRACE_SECONDS=120`, `VOICE_MAX_HOURS=3`, `VOICE_DMS=1` and
+   and their defaults are `VOICE_GRACE_SECONDS=120`, `VOICE_MAX_HOURS=3`, `VOICE_DMS=0` and
    `VOICE_PRIVATE=0`.
 
 ## 6. Results from tagpro.eu

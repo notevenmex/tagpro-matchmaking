@@ -311,9 +311,9 @@ async def _loop():
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    from . import autogroup, tagpro_eu, voice  # they import this module, so load them late
+    from . import autogroup, match_dm, tagpro_eu, voice  # they import this module, so load them late
     task = asyncio.create_task(_loop())
-    bots = [b for b in (autogroup.start(), voice.start(), tagpro_eu.start()) if b]
+    bots = [b for b in (autogroup.start(), voice.start(), match_dm.start(), tagpro_eu.start()) if b]
     yield
     task.cancel()
     for b in bots:

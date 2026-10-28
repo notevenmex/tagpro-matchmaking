@@ -169,12 +169,16 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .rules{max-width:68ch;margin:0 auto;background:var(--panel);border-radius:6px;padding:8px 26px 22px}
 .rules h2{font-family:var(--display);font-weight:700;font-size:28px;margin:22px 0 4px}
 .rules p,.rules li{color:var(--text)}
-.rules .draft{color:var(--muted);font-size:13px;margin-top:18px}
+.rules .draft{display:block;color:var(--muted);font-size:13px;margin-top:18px}
 .rules a{color:var(--text);text-decoration:underline}
 .rules .tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:18px}
 .rules .tools .btn{width:auto;margin:0;padding:7px 18px}
 .rules textarea{width:100%;box-sizing:border-box;min-height:340px;margin-top:18px;font:13px/1.5 ui-monospace,Consolas,monospace;background:var(--input);color:var(--text);border:0;border-radius:6px;padding:12px}
 .rules .preview{border-top:1px solid var(--line);margin-top:18px}
+.rules .matchdm{border-top:1px solid var(--line);margin-top:24px}
+.rules .matchdm label{display:block;margin-top:12px;font-weight:600}
+.rules .matchdm textarea{min-height:90px;margin-top:6px;font-weight:400}
+.rules .matchdm input{display:block;width:100%;box-sizing:border-box;margin-top:6px;background:var(--input);color:var(--text);border:0;border-radius:6px;padding:10px 12px;font:inherit;font-weight:400}
 
 dialog{border:0;border-radius:8px;background:var(--panel);color:var(--text);padding:22px 24px;width:min(360px,92vw)}
 dialog::backdrop{background:rgba(0,0,0,.6)}
@@ -1092,7 +1096,25 @@ function renderRules(){
   if(ME.is_admin){
     const when=RULES.updated_at?"Last edited "+new Date(RULES.updated_at).toLocaleString()+".":"These are the starting rules. Nobody has edited them yet.";
     box.append(h("div",{class:"tools"},h("button",{class:"btn",onclick:editRules},"Edit rules"),h("span",{class:"draft",style:"margin:0"},when)));
+    box.append(matchDmEditor());
   }
+}
+// Admins: the Discord invite and short rules list in the "match ready" DM every player gets
+function matchDmEditor(){
+  const wrap=h("section",{class:"matchdm"},h("h2",{},"Match ready DM"),h("p",{class:"draft"},"Loading…"));
+  api("/api/match-dm").then(cfg=>{
+    const inv=h("input",{type:"url",placeholder:"https://discord.gg/…","aria-label":"Discord invite link",value:cfg.discord_invite||""});
+    const ta=h("textarea",{"aria-label":"Match rules, one per line",rows:"4"}); ta.value=cfg.rules;
+    const msg=h("span",{class:"formmsg","aria-live":"polite"});
+    const save=h("button",{class:"btn",onclick:async()=>{ msg.textContent="Saving…"; msg.classList.remove("err"); save.disabled=true;
+      try{ await api("/api/match-dm",{method:"PUT",body:JSON.stringify({discord_invite:inv.value.trim(),rules:ta.value})}); msg.textContent=""; toast("Match DM saved."); }
+      catch(err){ msg.textContent=err.message; msg.classList.add("err"); }
+      save.disabled=false; }},"Save");
+    wrap.replaceChildren(h("h2",{},"Match ready DM"),
+      h("p",{class:"draft"},"When a match's TagPro group is ready, every player gets a DM with the group link, their team voice channel, this Discord invite and these rules (one per line, numbered for you)."),
+      h("label",{},"Discord invite link",inv), h("label",{},"Rules",ta), h("div",{class:"tools"},save,msg));
+  }).catch(err=>wrap.replaceChildren(h("p",{class:"err"},err.message)));
+  return wrap;
 }
 function editRules(){
   const box=$("#rules"), msg=h("span",{class:"formmsg","aria-live":"polite"});

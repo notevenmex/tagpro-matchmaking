@@ -82,8 +82,8 @@ Add `me` to `ADMIN_DISCORD_IDS` to see the Report tab.
 
 ## Auto group bot
 
-Once a match is drafted (map and server chosen), a bot can create the TagPro group and DM both
-captains the link, so nobody has to set it up by hand:
+Once a match is drafted (map and server chosen), a bot can create the TagPro group, so nobody has
+to set it up by hand. The link then goes out in the match ready DM (below):
 
 1. `pip install -r requirements-bot.txt && playwright install chromium`
 2. Create a bot in the Discord Developer Portal (the same app as login works), invite it to the
@@ -110,10 +110,19 @@ turns up within 25 minutes, the captains report the score as before. Details and
 
 Voice is required in matches. When the draft ends, the same Discord bot creates **Red** and **Blue**
 voice channels (open to anyone, or team-only with `VOICE_PRIVATE=1`), moves anyone already in voice on
-the server into theirs, DMs everyone the link, and deletes the channels after the match. Set
+the server into theirs, and deletes the channels after the match. Set
 `VOICE_CHANNELS=1`, `DISCORD_GUILD_ID` and `VOICE_CATEGORY_ID`. The full server layout, bot invite
 link and step-by-step setup (including `python -m app.discord_setup`, which builds the channels for
 you) are in [docs/discord-server.md](docs/discord-server.md).
+
+## Match ready DM
+
+When a match has its TagPro group link (made by the bot or pasted by the red captain), every player
+with Discord linked gets one DM with the map and server, the group link, their team voice channel,
+an invite to the community Discord and a numbered rules list. Admins set the invite link and the
+rules (one per line, "VC Required" and "Don't be toxic" to start) at the bottom of the Rules page.
+If a captain corrects the link, everyone gets the new one. It's on whenever `DISCORD_BOT_TOKEN` is
+set; `MATCH_DMS=0` turns it off, and `DISCORD_INVITE_URL` is the invite until an admin saves one.
 
 ## Tests
 

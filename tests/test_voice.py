@@ -123,6 +123,7 @@ class FakeDiscord:
 
 def test_opens_private_team_channels_and_moves_players(monkeypatch):
     monkeypatch.setattr(voice, "PRIVATE", True)
+    monkeypatch.setattr(voice, "SEND_DMS", True)
     lid, teams = make_lobby()
     drafting, _ = make_lobby(status="drafting")  # teams not final yet: no channels
     api = FakeDiscord(in_voice=[teams["red"][0]])

@@ -73,7 +73,7 @@ def lobby_and_job(lobby_id):
         return db.get(Lobby, lobby_id), db.scalar(select(GroupJob).where(GroupJob.lobby_id == lobby_id))
 
 
-def test_creates_group_and_dms_captains():
+def test_creates_group_and_leaves_dms_to_match_dm():
     lid = make_lobby()
     other = make_lobby(status="in_progress")  # already has a group: left alone
     creator, notifier = FakeCreator(), FakeNotifier()
@@ -85,9 +85,7 @@ def test_creates_group_and_dms_captains():
 
     lobby, job = lobby_and_job(lid)
     assert lobby.status == "in_progress" and lobby.group_link.startswith("https://tagpro.koalabeast.com/groups/")
-    assert job.status == "done" and job.dms_sent == 1  # the blue captain has no Discord linked
-    (uid, text), = [x for x in notifier.sent if x[0] == f"red-{lid - 1}"]
-    assert lobby.group_link in text and "Moon Base 2024" in text and "Red" in text
+    assert job.status == "done" and not notifier.sent  # the match ready DM (match_dm.py) carries the link
 
     asyncio.run(autogroup.run_once(creator, notifier))  # nothing left to do
     assert sum(s.lobby_id == lid for s in creator.specs) == 1

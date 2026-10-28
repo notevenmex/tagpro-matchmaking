@@ -32,7 +32,7 @@ LOBBY_CHANNEL_ID = os.getenv("VOICE_LOBBY_CHANNEL_ID", "")  # where players go w
 STAFF_ROLE_ID = os.getenv("VOICE_STAFF_ROLE_ID", "")        # can see and join every team channel
 GRACE_SECONDS = int(os.getenv("VOICE_GRACE_SECONDS", "120"))
 MAX_HOURS = float(os.getenv("VOICE_MAX_HOURS", "3"))        # safety net if a lobby never ends
-SEND_DMS = os.getenv("VOICE_DMS", "1") == "1"
+SEND_DMS = os.getenv("VOICE_DMS", "0") == "1"  # off: the voice link goes out in match_dm.py's DM
 PRIVATE = os.getenv("VOICE_PRIVATE", "0") == "1"  # 1 = only that team (and staff) can join; 0 = anyone can
 
 # Teams are final once the draft is over; the channels stay up until the game is.

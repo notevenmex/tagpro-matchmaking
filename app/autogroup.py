@@ -1,8 +1,9 @@
-"""Bot that turns a drafted lobby into a TagPro group and DMs both captains the link.
+"""Bot that turns a drafted lobby into a TagPro group.
 
 When a lobby reaches "awaiting_group" (draft, map veto and server vote are done), the worker creates
 a private competitive group on TagPro with the chosen map and server, stores the link on the lobby
-(which moves it to "in_progress", same as a captain pasting it), and DMs both captains. If the group
+(which moves it to "in_progress", same as a captain pasting it); match_dm.py then DMs every player
+the link. If the group
 can't be created after a few tries, the captains get a DM asking the red captain to make it by hand,
 and the site's paste-the-link flow still works.
 
@@ -115,14 +116,6 @@ def _details(spec: GroupSpec) -> str:
     return f"Map: **{spec.map_name or 'random'}** · Server: **{spec.server or 'any'}**"
 
 
-def ready_message(spec: GroupSpec, c: Captain, link: str) -> str:
-    other = next((x.tagpro_name for x in spec.captains if x is not c), "the other captain")
-    return (f"**Ranked PUGs match #{spec.lobby_id} is ready.** You're the **{c.team.title()}** captain "
-            f"(vs {other}).\n{_details(spec)}\nTagPro group: {link}\n"
-            f"Join first and share the link with your team. Competitive settings are already set; "
-            f"the first captain in becomes group leader.")
-
-
 def fallback_message(spec: GroupSpec, c: Captain) -> str:
     where = f" at {SITE_URL}/#play" if SITE_URL else " on the match page"
     ask = ("please create a private TagPro group with competitive settings (no kiss) and paste its link"
@@ -153,9 +146,8 @@ async def handle(spec: GroupSpec, creator: GroupCreator, notifier: Notifier):
             await asyncio.to_thread(save_dms, spec.lobby_id, sent)
         return
     log.info("lobby %s: created %s", spec.lobby_id, link)
-    if await asyncio.to_thread(save_link, spec.lobby_id, link):
-        sent = await _dm_captains(notifier, spec, lambda c: ready_message(spec, c, link))
-        await asyncio.to_thread(save_dms, spec.lobby_id, sent)
+    # The link reaches all players (captains included) in match_dm.py's "match ready" DM.
+    await asyncio.to_thread(save_link, spec.lobby_id, link)
 
 
 async def run_once(creator: GroupCreator, notifier: Notifier) -> int:
