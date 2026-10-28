@@ -251,7 +251,7 @@ def report_match(body: MatchIn, admin_id: str = Depends(auth.require_admin), db:
     return {"id": m.id, "changes": changes}
 
 
-# ---------- health check (Railway pings this before switching traffic to a new deploy) ----------
+# ---------- health check (the host pings this before switching traffic to a new deploy) ----------
 @app.get("/healthz")
 def healthz(db: Session = Depends(get_db)):
     db.execute(select(1))

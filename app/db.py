@@ -9,7 +9,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 
 def database_url(raw: str) -> str:
-    """Use the psycopg 3 driver for Postgres URLs written the way Railway and Heroku hand them out."""
+    """Use the psycopg 3 driver for Postgres URLs written the way Render, Railway and Heroku hand them out."""
     for prefix in ("postgres://", "postgresql://"):
         if raw.startswith(prefix):
             return "postgresql+psycopg://" + raw[len(prefix):]

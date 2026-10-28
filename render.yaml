@@ -1,0 +1,60 @@
+# Render Blueprint: the website and its Postgres database. See docs/deploy.md.
+# MexBot (the music bot) is a separate service with its own settings in mexbot/.
+services:
+  - type: web
+    name: tagpropugs
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: ohio
+    plan: 0.5c-512mb  # move to 1c-2g if AUTO_GROUP=1 (Chromium) runs out of memory
+    numInstances: 1   # must stay 1: the queue lock and live-update sockets are in memory
+    healthCheckPath: /healthz
+    preDeployCommand: python -m app.seed  # does nothing once a season exists
+    buildFilter:
+      ignoredPaths:
+        - mexbot/**
+        - docs/**
+        - tests/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tagpropugs-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: HTTPS_ONLY
+        value: "1"
+      - key: DEV_LOGIN
+        value: "0"
+      - key: DISCORD_REDIRECT_URI
+        value: https://tagpropugs.com/auth/callback
+      - key: SITE_URL
+        value: https://tagpropugs.com
+      # Secrets and IDs: Render asks for these when the Blueprint is first created.
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: ADMIN_DISCORD_IDS
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_GUILD_ID
+        sync: false
+      # Team voice channels (docs/discord-server.md). `python -m app.discord_setup` prints the IDs.
+      - key: VOICE_CHANNELS
+        value: "1"
+      - key: VOICE_CATEGORY_ID
+        sync: false
+      - key: VOICE_LOBBY_CHANNEL_ID
+        sync: false
+      - key: VOICE_STAFF_ROLE_ID
+        sync: false
+
+databases:
+  - name: tagpropugs-db
+    plan: 0.1c-256mb
+    region: ohio
+    databaseName: rankedpugs
+    user: rankedpugs
+    postgresMajorVersion: "17"

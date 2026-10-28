@@ -89,7 +89,7 @@ async def main() -> int:
                                     {"name": key, "type": kind, "parent_id": cat, "permission_overwrites": ow}))["id"]
             print(f"created {'voice' if kind == 2 else 'text'} channel {name}")
 
-    print("\nAdd these to the site's environment (Railway > Variables):\n")
+    print("\nAdd these to the site's environment (Render > your service > Environment):\n")
     print(f"DISCORD_GUILD_ID={guild}")
     print(f"VOICE_CATEGORY_ID={ids['🏆 Live Matches']}")
     print(f"VOICE_LOBBY_CHANNEL_ID={ids['Post-Game Lounge']}")
