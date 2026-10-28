@@ -1,5 +1,8 @@
 """Captain score reporting: both captains enter the final score once the game is played.
 
+The score normally comes from tagpro.eu instead (tagpro_eu.py). While that search is in its first
+minutes captains can't report; if it finds nothing, they report as below.
+
 - Matching reports finish the match and update everyone's Elo (rating.record_match).
 - Different reports put the match in the admin dispute queue; an admin sets the final score.
   Captains can still correct their own report while it's disputed, and if the two then match,
@@ -12,7 +15,7 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import auth, play
+from . import auth, play, tagpro_eu
 from .db import Lobby, LobbyPlayer, Map, Match, Player, ScoreReport, Season, get_db
 from .rating import record_match
 
@@ -50,6 +53,8 @@ def queue_block(db: Session, player_id: int) -> str | None:
     if not row:
         return None
     lobby, team = row
+    if tagpro_eu.captains_wait_until(db, lobby):
+        return f"Waiting for the result of match {lobby.id} from tagpro.eu. You can queue once it's in."
     if lobby.status == "disputed":
         return f"The two captains reported different scores for match {lobby.id}. You can queue once an admin settles it."
     if team not in _reports(db, lobby):
@@ -76,13 +81,20 @@ def score_view(db: Session, lobby: Lobby, me: Player | None) -> dict | None:
     lp = me and db.scalar(select(LobbyPlayer).where(LobbyPlayer.lobby_id == lobby.id, LobbyPlayer.player_id == me.id))
     final = db.get(Match, lobby.match_id) if lobby.match_id else None
     show = bool(lp and lp.is_captain)
+    lk = tagpro_eu.lookup(db, lobby.id)
+    wait = tagpro_eu.captains_wait_until(db, lobby)
     return {
         "reported": sorted(reports),  # which captains have reported: [], ["red"], ["blue"] or both
         "reports": {t: {"red_score": r.red_score, "blue_score": r.blue_score} for t, r in reports.items()}
         if show else None,
-        "can_report": bool(show and lobby.status in UNREPORTED),
+        "can_report": bool(show and lobby.status in UNREPORTED and not wait),
         "final": {"red_score": final.red_score, "blue_score": final.blue_score, "winner": final.winner,
-                  "verified_by": "captains" if final.reported_by == "captains" else "admin"} if final else None,
+                  "verified_by": final.reported_by if final.reported_by in ("captains", "tagpro.eu") else "admin",
+                  "tagpro_eu": tagpro_eu.match_url(lk.tagpro_eu_id) if lk and lk.tagpro_eu_id else None}
+        if final else None,
+        # the tagpro.eu search: searching (captains_wait_until is set while captains can't report yet),
+        # found, gave_up, closed, or None when it's off
+        "tagpro_eu": {"status": lk.status, "captains_wait_until": wait, "can_hint": show} if lk else None,
     }
 
 
@@ -102,6 +114,9 @@ def report_score(lobby_id: int, body: ScoreIn, p: Player = Depends(auth.require_
         if lobby.status not in UNREPORTED:
             raise HTTPException(409, "This match is already finished." if lobby.status == "finished"
                                 else "You can report once the game has started.")
+        if tagpro_eu.captains_wait_until(db, lobby):
+            raise HTTPException(409, "We're still looking for this game on tagpro.eu. If it doesn't turn up, "
+                                     "you'll be asked to report the score.")
 
         reports = _reports(db, lobby)
         mine = reports.get(lp.team)
@@ -125,6 +140,36 @@ def report_score(lobby_id: int, body: ScoreIn, p: Player = Depends(auth.require_
             result = "disputed"
         play._done(db)
         return {"ok": True, "result": result}
+
+
+class TagproEuIn(BaseModel):
+    link: str = Field(max_length=200)
+
+
+@router.post("/api/lobbies/{lobby_id}/tagpro-eu")
+def tagpro_eu_link(lobby_id: int, body: TagproEuIn, request: Request, db: Session = Depends(get_db)):
+    """A captain or admin points the tagpro.eu search at the game's match page. The worker still checks
+    that the players and time fit before using it."""
+    with play.LOCK:
+        lobby = db.get(Lobby, lobby_id)
+        if not lobby:
+            raise HTTPException(404, "No such match.")
+        did = request.session.get("discord_id")
+        p = auth.current_player(request, db)
+        lp = p and db.scalar(select(LobbyPlayer).where(LobbyPlayer.lobby_id == lobby.id,
+                                                       LobbyPlayer.player_id == p.id))
+        if not did or not ((lp and lp.is_captain) or auth.is_admin(did, p)):
+            raise HTTPException(403, "Only the captains or an admin can do that.")
+        if not tagpro_eu.ENABLED:
+            raise HTTPException(409, "tagpro.eu lookups are turned off.")
+        if lobby.status not in UNREPORTED:
+            raise HTTPException(409, "This match is already finished.")
+        eu_id = tagpro_eu.parse_match_id(body.link)
+        if eu_id is None:
+            raise HTTPException(400, "Paste the tagpro.eu match link (https://tagpro.eu/?match=…).")
+        tagpro_eu.add_hint(db, lobby, eu_id)
+        play._done(db)
+        return {"ok": True}
 
 
 # ---------- admins ----------
