@@ -19,6 +19,7 @@ from sqlalchemy import select
 from . import play, tagpro_eu
 from .db import GroupJob, Lobby, LobbyPlayer, Map, Player, SessionLocal
 from .discord_bot import DiscordNotifier
+from .group_host import Seat
 from .tagpro_group import Captain, GroupError, GroupSpec, PlaywrightGroupCreator
 
 log = logging.getLogger("rankedpugs")
@@ -40,11 +41,19 @@ class Notifier(Protocol):
 # ---------- database steps (run in a thread, under play.LOCK) ----------
 def _spec(db, lobby: Lobby) -> GroupSpec:
     rows = db.execute(select(LobbyPlayer, Player).join(Player, LobbyPlayer.player_id == Player.id)
-                      .where(LobbyPlayer.lobby_id == lobby.id, LobbyPlayer.is_captain.is_(True))
+                      .where(LobbyPlayer.lobby_id == lobby.id)
                       .order_by(LobbyPlayer.team.desc())).all()  # red first
     map_name = db.get(Map, lobby.map_id).name if lobby.map_id else None
     return GroupSpec(lobby_id=lobby.id, map_name=map_name, server=lobby.server,
-                     captains=[Captain(lp.team, p.tagpro_name, p.discord_id) for lp, p in rows])
+                     captains=[Captain(lp.team, p.tagpro_name, p.discord_id) for lp, p in rows if lp.is_captain],
+                     seats=[Seat(p.tagpro_name, lp.team, lp.is_captain) for lp, p in rows if lp.team])
+
+
+def lobby_is_live(lobby_id: int) -> bool:
+    """Whether a match still needs its TagPro group: until it's reported, settled or cancelled."""
+    with SessionLocal() as db:
+        lobby = db.get(Lobby, lobby_id)
+        return bool(lobby and lobby.status in ("awaiting_group", "in_progress"))
 
 
 def claim_jobs() -> list[GroupSpec]:
@@ -165,9 +174,25 @@ async def run_once(creator: GroupCreator, notifier: Notifier) -> int:
     return len(specs)
 
 
+def missing_message(spec: GroupSpec, c: Captain, counts: str) -> str:
+    return (f"**Ranked PUGs match #{spec.lobby_id}:** the TagPro group still isn't full ({counts}). "
+            f"The bot launches as soon as both teams are full. To start anyway, anyone on Red or Blue "
+            f"can type `!start` in the group chat.")
+
+
+def hosting_creator(notifier: Notifier) -> PlaywrightGroupCreator:
+    async def is_live(lobby_id: int) -> bool:
+        return await asyncio.to_thread(lobby_is_live, lobby_id)
+
+    async def on_missing(spec: GroupSpec, counts: str):
+        await _dm_captains(notifier, spec, lambda c: missing_message(spec, c, counts))
+
+    return PlaywrightGroupCreator(is_live=is_live, on_missing=on_missing)
+
+
 async def worker(creator: GroupCreator | None = None, notifier: Notifier | None = None, interval: float = 2.0):
-    creator = creator or PlaywrightGroupCreator()
     notifier = notifier or DiscordNotifier()
+    creator = creator or hosting_creator(notifier)
     await asyncio.to_thread(reset_running)
     while True:
         try:

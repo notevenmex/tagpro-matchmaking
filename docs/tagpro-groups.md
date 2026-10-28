@@ -58,6 +58,33 @@ A normal group has no server dropdown. Instead it has region checkboxes, all on 
 `("setting", {name: "regions", value: "US East,US Central"})`. The site's server vote offers the
 same five region names (`SERVERS`), and the bot sets `regions` to the winning one alone.
 
+## Hosting the match
+
+The bot stays in the group as leader for the whole match (`app/group_host.py`):
+
+- Players pick their own team. When Red and Blue both have 4, the bot posts a 10-second
+  countdown in group chat and launches the game (`groupPlay`). If someone leaves during the
+  countdown, it cancels.
+- It launches by itself only once. To relaunch after a crash or an early end, or to start without
+  full teams, anyone on Red or Blue types `!start` in group chat.
+- If the teams still aren't full after 3 minutes, both captains get one DM with the counts.
+- Anyone in the spectator or waiting slots who chats in the group is kicked from the group
+  (`kick`), once, with no other consequence. Players on Red or Blue are never kicked. Neither is
+  anyone whose TagPro name matches a drafted player, as a safety net for players still in
+  spectators. Group names can't be trusted otherwise: guests show as "Some Ball", and alts and
+  renamed accounts don't match the registered name.
+- It leaves (`/groups/leave`) once the match is no longer live (reported, settled or cancelled),
+  or after 90 minutes at most.
+
+**Resources:** each hosted match keeps one headless Chromium open for its whole length, at roughly
+200 to 300 MB of RAM. `TAGPRO_MAX_HOSTED_GROUPS` (default 2) caps that. Matches over the cap get the
+old behavior: the bot creates the group, makes the first person to join the leader, and leaves.
+On a 512 MB instance, set the cap to 1 or run the bot on a bigger instance.
+
+Tunables: `TAGPRO_COUNTDOWN_SECONDS`, `TAGPRO_MISSING_DM_SECONDS`, `TAGPRO_MAX_HOST_MINUTES`,
+`TAGPRO_START_COMMAND`. The event names and payloads (`TAGPRO_TEAM_NUMBERS` `{"red": 1, "blue": 2}`,
+`TAGPRO_KICK_EVENT`, `TAGPRO_LAUNCH_EVENT`) are still being confirmed against the live page.
+
 ## What could block automation
 
 - **Unverified against the live site.** The container this was built in can't reach
@@ -67,7 +94,7 @@ same five region names (`SERVERS`), and the bot sets `regions` to the winning on
   Errors are logged per lobby and stored on `group_jobs.error`.
 - **Captcha / bot protection.** If the create page shows a captcha, the bot reports it and falls
   back to the manual flow. It does not try to solve captchas.
-- **Leadership hand-off.** The bot makes the first person who joins the leader with the
+- **Leadership hand-off (over the hosting cap only).** The bot makes the first person who joins the leader with the
   `leader` socket event (configurable via `TAGPRO_LEADER_EVENT`). The live page has this event; the
   log line says whether the hand-off worked. If it doesn't, the bot still leaves after a captain joins, and
   leadership should pass to the remaining member.

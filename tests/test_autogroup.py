@@ -81,6 +81,8 @@ def test_creates_group_and_dms_captains():
     spec = next(s for s in creator.specs if s.lobby_id == lid)
     assert (spec.map_name, spec.server) == ("Moon Base 2024", "US Central")
     assert [c.team for c in spec.captains] == ["red", "blue"]
+    assert [(x.team, x.is_captain) for x in spec.seats] == [("red", True), ("blue", True)]
+    assert autogroup.lobby_is_live(lid)
     assert all(s.lobby_id != other for s in creator.specs)
 
     lobby, job = lobby_and_job(lid)

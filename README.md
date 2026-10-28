@@ -91,10 +91,10 @@ captains the link, so nobody has to set it up by hand:
    server with them.
 3. Set `AUTO_GROUP=1`.
 
-The group is private, with standard competitive settings, Kissing Flag Carriers off (from the experimental settings), the drafted map and the voted server. The
-bot waits in the group until a captain joins, makes them leader, and leaves. If creation fails a
-few times, the captains get a DM asking the red captain to make the group and paste the link on the
-match page. Research notes, settings and known risks: [docs/tagpro-groups.md](docs/tagpro-groups.md).
+The group is private, with PUG settings (8 minutes, 6-cap mercy, no-kiss), the drafted map and
+the voted region. The bot stays group leader for the whole match: it launches the game once Red
+and Blue are both full and kicks spectators who chat. If creation fails a few times, the captains
+get a DM asking the red captain to make the group and paste the link on the match page. Research notes, settings and known risks: [docs/tagpro-groups.md](docs/tagpro-groups.md).
 
 ## Results and stats from tagpro.eu
 
