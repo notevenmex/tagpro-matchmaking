@@ -21,6 +21,8 @@ Log in with Discord, then register your TagPro name and the position you play: O
 - Your rating is your Elo. Everyone starts at 1000.
 - A win between evenly matched teams is worth about 25 Elo. Beating a stronger team earns more and losing to a weaker one costs more. Team strength is the average Elo of its players.
 - If you're rated below the game's average, wins count for more and losses for less (up to half again). Players rated above the average get a smaller version of the same, so playing in lower-rated games doesn't cost you. If you keep winning games against higher-rated lobbies, your wins count for even more, up to double.
+- Momentum: after 2 wins in a row, each further win in the streak counts 10% more (the 3rd win +10%, the 4th +20%, and so on up to +100%). Losing streaks work the same way, but a loss never costs more than 1.5x.
+- Every match is zero-sum: the Elo the winners gain adds up to the Elo the losers lose, so ratings don't inflate over a season.
 - Your first 10 games of a season are placements: they count for a bit more, and your Elo stays hidden (shown as "New") until they're done. After that you appear on the Top 100.
 
 ## Map voting
