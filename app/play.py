@@ -20,7 +20,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from . import auth
-from .db import (Lobby, LobbyPlayer, Map, MapVote, Player, QueueBan, QueueEntry, Rating, Season,
+from .db import (GroupJob, Lobby, LobbyPlayer, Map, MapVote, Player, QueueBan, QueueEntry, Rating, Season,
                  SessionLocal, get_db)
 from .rating import START_ELO, points
 
@@ -321,9 +321,13 @@ async def _loop():
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    from . import autogroup  # imports this module, so load it late
     task = asyncio.create_task(_loop())
+    bot = autogroup.start()
     yield
     task.cancel()
+    if bot:
+        bot.cancel()
 
 
 @router.websocket("/ws")
@@ -357,6 +361,7 @@ def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
         "map_pool": lobby.map_pool, "map": map_name,
         "servers": [{"name": s, "votes": votes[s]} for s in SERVERS], "server": lobby.server,
         "group_link": lobby.group_link if mine else None,
+        "group_bot": db.scalar(select(GroupJob.status).where(GroupJob.lobby_id == lobby.id)),  # see autogroup.py
         "me": None if not mine else {
             "team": mine.team, "is_captain": mine.is_captain, "accepted": mine.accepted,
             "server_vote": mine.server_vote, "my_turn": bool(mine.is_captain and t == mine.team)},
