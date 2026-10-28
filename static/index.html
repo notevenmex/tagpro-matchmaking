@@ -787,7 +787,10 @@ function viewMatch(L){
   const team=t=>h("section",{class:"team "+t},h("h3",{},teamName(t)),...L.players.filter(p=>p.team===t).sort((a,b)=>b.is_captain-a.is_captain).map(chip));
   const group=h("div",{class:"group"});
   if(L.group_link) group.append(h("a",{class:"pill ok big",href:L.group_link,target:"_blank",rel:"noopener"},"Join the TagPro group"));
-  if(meRed){
+  const botBusy=!L.group_link&&(L.group_bot==="running"||L.group_bot==="retry");
+  if(botBusy) group.append(h("span",{class:"muted",style:"display:flex;align-items:center;justify-content:center;gap:8px"},h("span",{class:"live-dot"}),"Creating the TagPro group…"));
+  else if(meRed){
+    if(L.group_bot==="failed"&&!L.group_link) group.append(h("span",{class:"muted"},"The bot couldn’t create the group, so it’s on you."));
     const inp=h("input",{type:"url",required:true,placeholder:"https://tagpro.koalabeast.com/groups/…","aria-label":"TagPro group link",value:GROUP_DRAFT||L.group_link||"",oninput:e=>{GROUP_DRAFT=e.target.value}});
     const f=h("form",{},inp,h("button",{class:"pill primary"},L.group_link?"Update":"Share"));
     f.addEventListener("submit",async e=>{e.preventDefault(); await act(L,"group",{link:inp.value}); GROUP_DRAFT="";});
