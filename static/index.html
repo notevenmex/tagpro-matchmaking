@@ -996,8 +996,7 @@ function renderLiveMatches(){
       h("div",{class:"top"},h("b",{},m.map||"Map veto pending"),h("span",{class:"elo",title:"Average Elo of all 8 players"},m.avg_elo??"–",h("small",{}," avg Elo"))),
       h("div",{class:"sub",style:"color:var(--muted)"},`Match #${m.id}${m.server?" · "+m.server:""}`),
       h("div",{class:"teams"},team("red"),team("blue")),
-      m.group_link?h("div",{class:"spec"},h("a",{class:"pill",href:m.group_link,target:"_blank",rel:"noopener"},"Spectate"),
-        h("span",{},"Spectators: no chat during the game, or the bot removes you.")):null));
+      m.group_link?h("div",{class:"spec"},h("a",{class:"pill",href:m.group_link,target:"_blank",rel:"noopener"},"Spectate")):null));
   })));
 }
 function renderQueuePanel(){
