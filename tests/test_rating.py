@@ -1,10 +1,4 @@
-from app.rating import elo_change, level, level_range
-
-
-def test_levels_match_faceit_thresholds():
-    assert [level(e) for e in (100, 500, 501, 900, 1000, 1050, 1051, 1530, 1531, 2000, 2001, 3500)] == \
-        [1, 1, 2, 3, 4, 4, 5, 7, 8, 9, 10, 10]
-    assert level_range(4) == (901, 1050) and level_range(10) == (2001, None)
+from app.rating import elo_change
 
 
 def test_even_match_is_25_and_gap_scales_it():

@@ -99,8 +99,9 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .row.dim{opacity:.2}
 .row.hit{background:var(--panel-2);box-shadow:inset 3px 0 0 var(--red)}
 .rank{width:26px;text-align:right;color:var(--muted);font-size:16px;flex:none}
-.badge{flex:none;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:500;font-size:28px;
-  color:#fff;background:#18181b;border:3px solid var(--tier);box-shadow:0 0 0 2px #18181b inset}
+.badge{flex:none;min-width:58px;height:30px;padding:0 9px;border-radius:999px;display:grid;place-items:center;font-family:var(--display);font-weight:600;font-size:18px;
+  font-variant-numeric:tabular-nums;color:#fff;background:#18181b}
+.badge.new{color:#a1a1aa;font-size:14px}
 .who{min-width:0;flex:1}
 .elo{flex:none;color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
 .name{font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
@@ -154,7 +155,7 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 dialog{border:0;border-radius:8px;background:var(--panel);color:var(--text);padding:22px 24px;width:min(360px,92vw)}
 dialog::backdrop{background:rgba(0,0,0,.6)}
 .pd{display:flex;gap:16px;align-items:center}
-.pd .badge{width:64px;height:64px;font-size:40px}
+.pd .badge{min-width:84px;height:44px;font-size:28px}
 .pd h2{margin:0;font-size:22px}
 .pd p{margin:2px 0;color:var(--muted);font-size:14px}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
@@ -417,8 +418,6 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
 /* ---------- helpers ---------- */
 const $ = (s,el=document)=>el.querySelector(s);
 const h = (tag,attrs={},...kids)=>{const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs)){if(v==null||v===false)continue;if(k==="class")e.className=v;else if(k==="style")e.style.cssText=v;else if(k.startsWith("on"))e.addEventListener(k.slice(2),v);else e.setAttribute(k,v===true?"":v)}for(const c of kids.flat())if(c!=null&&c!==false)e.append(c instanceof Node?c:document.createTextNode(c));return e};
-// FACEIT level colours: 1 grey, 2–3 green, 4–7 yellow, 8–9 orange, 10 red
-const tier = lv => !lv?"#52525b":lv>=10?"#fe1f00":lv>=8?"#ff6309":lv>=4?"#ffc800":lv>=2?"#1ce400":"#dddddd";
 const minus = n => String(n).replace("-","−");
 async function api(path, opts={}){
   const r = await fetch(path,{credentials:"same-origin",headers:{"Content-Type":"application/json"},...opts});
@@ -426,7 +425,8 @@ async function api(path, opts={}){
   if(!r.ok){const det=d&&d.detail;throw new Error(typeof det==="string"?det:Array.isArray(det)?det.map(x=>x.msg).join("; "):`Request failed (${r.status}).`)}
   return d;
 }
-function badge(lv,size){const b=h("div",{class:"badge",style:`--tier:${tier(lv)}`,title:lv?`Level ${lv}`:"In placements"},lv?String(lv):"–");if(size){b.style.width=b.style.height=size+"px";b.style.fontSize=Math.round(size*.62)+"px"}return b}
+// A player's current Elo; null while they're still in placements
+function badge(elo,size){const b=h("div",{class:"badge"+(elo==null?" new":""),title:elo==null?"In placements":`${elo} Elo`},elo==null?"New":String(elo));if(size){b.style.height=size+"px";b.style.fontSize=Math.round(size*.5)+"px"}return b}
 const tagEls = tags => (tags||[]).map(t=>h("span",{class:"tag"+(t==="OG"?" og":t.includes("★")?" champ":"")},t));
 const posLabel = p => p==="defense"?"Defense":p==="flex"?"Flex":"Offense";
 const dotCls = p => "dot"+(p==="defense"?" d":p==="flex"?" f":"");
@@ -511,10 +511,9 @@ function renderBoard(){
   for(let c=0;c<5;c++){
     const slice=BOARD.slice(c*20,c*20+20); if(!slice.length)break;
     const col=h("div",{class:"col"});
-    slice.forEach(p=>col.append(h("button",{class:"row","data-name":p.name.toLowerCase(),onclick:()=>openPlayer(p.name),"aria-label":`${p.name}, rank ${p.rank}, level ${p.level}, ${p.elo} Elo`},
-      h("span",{class:"rank"},p.rank+"."), badge(p.level),
+    slice.forEach(p=>col.append(h("button",{class:"row","data-name":p.name.toLowerCase(),onclick:()=>openPlayer(p.name),"aria-label":`${p.name}, rank ${p.rank}, ${p.elo} Elo`},
+      h("span",{class:"rank"},p.rank+"."), badge(p.elo),
       h("span",{class:"who"}, h("span",{class:"name"},p.name,h("i",{class:dotCls(p.position),title:posLabel(p.position)})), h("span",{class:"tags"},tagEls(p.tags))),
-      h("span",{class:"elo"},String(p.elo))
     )));
     board.append(col);
   }
@@ -524,10 +523,10 @@ async function openPlayer(name){
   try{
     const p=await api("/api/players/"+encodeURIComponent(name));
     const r=p.rating, rec=`${r.wins}–${r.games-r.wins}`;
-    const b=$("#pd-badge"); b.textContent=r.level||"–"; b.style.setProperty("--tier",tier(r.level));
+    $("#pd-badge").replaceWith(Object.assign(badge(r.elo),{id:"pd-badge"}));
     $("#pd-name").textContent=p.name;
     $("#pd-meta").textContent = !r.games ? `${posLabel(p.position)} · No games this season yet.`
-      : r.level ? `${posLabel(p.position)} · Level ${r.level} · ${r.elo} Elo · ${rec}`
+      : r.elo!=null ? `${posLabel(p.position)} · ${r.elo} Elo · ${rec}`
       : `${posLabel(p.position)} · Placements: ${r.placements_left} left · ${rec}`;
     $("#pd-tags").replaceChildren(...tagEls(p.tags));
     $("#pd-recent").replaceChildren(...p.recent.map(m=>h("li",{},h("span",{},`${m.won?"Won":"Lost"} on ${m.map||"unknown map"}`),m.change==null?h("span",{class:"sub"},"placement"):h("span",{class:m.change>=0?"up":"down"},(m.change>=0?"+":"")+minus(m.change)))));
@@ -637,7 +636,7 @@ async function renderMapAdmin(){
 /* ---------- home glance ---------- */
 function renderGlance(){
   const gp=$("#g-players"); gp.replaceChildren();
-  BOARD.slice(0,5).forEach(p=>gp.append(h("li",{},badge(p.level,32),h("span",{},p.name),h("span",{class:"sub"},"#"+p.rank))));
+  BOARD.slice(0,5).forEach(p=>gp.append(h("li",{},badge(p.elo,28),h("span",{},p.name),h("span",{class:"sub"},"#"+p.rank))));
   if(!BOARD.length) gp.append(h("li",{class:"sub"},"Nobody ranked yet."));
   const gm=$("#g-maps"); gm.replaceChildren();
   const total=m=>m.votes.reduce((s,v)=>s+v.score,0);
@@ -800,7 +799,7 @@ function popHead(L,title,sub,{closable=true,timer=false,go=false}={}){
       closable && h("button",{class:"x","aria-label":"Minimize",title:"Minimize",onclick:dismissLobby},"×")));
 }
 const timerBar=L=>L.deadline&&h("div",{class:"timer","aria-hidden":"true"},h("i",{"data-deadline":L.deadline,"data-total":L.step_seconds,"data-kind":"bar",style:`width:${100*Math.max(0,L.deadline-nowS())/L.step_seconds}%`}));
-const chip=p=>h("div",{class:"chip"},badge(p.rating,32),h("span",{class:"name"},p.name,dot(p)),p.is_captain&&h("span",{class:"cap",title:"Captain"},"CAPT"));
+const chip=p=>h("div",{class:"chip"},badge(p.elo,28),h("span",{class:"name"},p.name,dot(p)),p.is_captain&&h("span",{class:"cap",title:"Captain"},"CAPT"));
 
 function viewReady(L){
   const acc=L.players.filter(p=>p.accepted).length, mine=L.me&&L.me.accepted;
@@ -828,7 +827,7 @@ function viewDraft(L){
     return h("section",{class:"team "+t,"aria-label":teamName(t)+" team"},h("h3",{},teamName(t),h("small",{},`${o} O · ${d} D`+(f?` · ${f} Flex`:""))),
       ...ps.map(chip),...Array.from({length:size-ps.length},()=>h("div",{class:"chip empty"},"Open slot")));
   };
-  const pool=L.players.filter(p=>!p.team).sort((a,b)=>b.rating-a.rating);
+  const pool=L.players.filter(p=>!p.team).sort((a,b)=>b.elo-a.elo);
   return [
     popHead(L,"Captains draft",mine?"Your pick. Choose a player for your team.":`${cap?cap.name:"The captain"} is picking for ${teamName(L.turn)}…`,{timer:true,go:mine}),
     timerBar(L),
@@ -836,8 +835,8 @@ function viewDraft(L){
       h("ol",{class:"order","aria-label":"Pick order"},...L.pick_order.map((t,i)=>h("li",{class:`${t}${i<done?" done":""}${i===done?" now":""}`,title:`Pick ${i+1}: ${teamName(t)}`},String(i+1)))),
       h("div",{class:"draft"},team("red"),
         h("section",{class:"pool"},h("h3",{},"Player pool",h("small",{},`${pool.length} left`)),
-          ...pool.map(p=>h("button",{class:"pick",disabled:!mine,onclick:()=>act(L,"pick",{name:p.name}),"aria-label":`Pick ${p.name}, ${posLabel(p.position)}, rating ${p.rating}`},
-            badge(p.rating,38),h("span",{class:"who"},h("span",{class:"name"},p.name,dot(p)),h("span",{class:"tags"},posLabel(p.position))),
+          ...pool.map(p=>h("button",{class:"pick",disabled:!mine,onclick:()=>act(L,"pick",{name:p.name}),"aria-label":`Pick ${p.name}, ${posLabel(p.position)}, ${p.elo} Elo`},
+            badge(p.elo,32),h("span",{class:"who"},h("span",{class:"name"},p.name,dot(p)),h("span",{class:"tags"},posLabel(p.position))),
             h("span",{class:"go"},"Pick →")))),
         team("blue"))),
   ];

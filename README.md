@@ -34,9 +34,9 @@ Add `me` to `ADMIN_DISCORD_IDS` to see the Report tab.
 
 - **Ratings** (`app/rating.py`): FACEIT-style Elo, one per player per season. Everyone starts at
   1000; an even match is worth ±25 (K = 50 on each team's average Elo), more for an upset, at
-  least 1. Elo maps to FACEIT's skill levels 1–10 (level 10 is 2001+). The first 10 games are
-  placements (1.5× swings, Elo and level hidden, not on the Top 100). Report results through
-  `record_match()`. Change `K`, `PLACEMENT_GAMES`, `PLACEMENT_MULTIPLIER` and `LEVELS` to tune it.
+  least 1. The site shows each player's Elo number (no levels or tiers). The first 10 games are
+  placements (1.5× swings, Elo hidden and shown as "New", not on the Top 100). Report results through
+  `record_match()`. Change `K`, `PLACEMENT_GAMES` and `PLACEMENT_MULTIPLIER` to tune it.
 - **Map chance**: each map's vote total (floored at 0) divided by the total across all maps.
 - **Archived data**: the seed loads the players and votes from the June 2017 Wayback snapshot.
   Those players have no Discord linked. To give one to its real owner, set `discord_id` on that

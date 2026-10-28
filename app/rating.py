@@ -2,12 +2,11 @@
 same amount, based on the two teams' average Elo.
 
 How it maps to FACEIT:
-- Everyone starts at 1000 Elo (FACEIT's default for new accounts, skill level 4).
+- Everyone starts at 1000 Elo (FACEIT's default for new accounts).
 - A match between evenly matched teams is worth about ±25. The underdog gains more and loses
   less; the favourite gains less and loses more. Every result moves you at least 1 point.
-- Skill levels 1-10 use FACEIT's current CS2 thresholds (level 10 is 2001+). Elo can't drop
-  below 100, the bottom of level 1.
-- The first 10 matches of a season are placements: they move Elo 1.5x as far, and your level
+- The site shows the Elo number itself (no FACEIT-style levels). Elo can't drop below 100.
+- The first 10 matches of a season are placements: they move Elo 1.5x as far, and your Elo
   stays hidden (and you stay off the Top 100) until they're done.
 Tune the constants here.
 """
@@ -18,30 +17,10 @@ from .db import Match, MatchPlayer, Player, Rating, Season
 
 START_ELO = 1000
 K = 50                     # an even match is worth K / 2 = 25
-PLACEMENT_GAMES = 10       # matches before your level shows and you appear on the Top 100
+PLACEMENT_GAMES = 10       # matches before your Elo shows and you appear on the Top 100
 PLACEMENT_MULTIPLIER = 1.5
 ELO_FLOOR = 100
 MIN_GAMES = PLACEMENT_GAMES
-
-# (level, lowest Elo for that level), from FACEIT's CS2 skill levels
-LEVELS = [(1, 100), (2, 501), (3, 751), (4, 901), (5, 1051), (6, 1201),
-          (7, 1351), (8, 1531), (9, 1751), (10, 2001)]
-
-
-def level(elo: float) -> int:
-    lv = 1
-    for n, low in LEVELS:
-        if elo >= low:
-            lv = n
-    return lv
-
-
-def level_range(lv: int) -> tuple[int, int | None]:
-    """Lowest and highest Elo for a level (None = no ceiling)."""
-    low = LEVELS[lv - 1][1]
-    high = LEVELS[lv][1] - 1 if lv < 10 else None
-    return low, high
-
 
 def expected(a: float, b: float) -> float:
     return 1 / (1 + 10 ** ((b - a) / 400))
@@ -69,7 +48,7 @@ def rating_out(r: Rating | None) -> dict:
     games = r.games if r else 0
     placed = games >= PLACEMENT_GAMES
     elo = r.elo if r else START_ELO
-    return {"elo": elo if placed else None, "level": level(elo) if placed else None,
+    return {"elo": elo if placed else None,
             "games": games, "wins": r.wins if r else 0,
             "placements_left": max(0, PLACEMENT_GAMES - games)}
 
@@ -103,5 +82,5 @@ def record_match(db: Session, season: Season, *, winner: str, lineup: list[tuple
         db.add(MatchPlayer(match_id=m.id, player_id=p.id, team=team, position=pos,
                            elo_before=before, elo_after=r.elo))
         changes.append({"name": p.tagpro_name, "team": team, "before": before, "after": r.elo,
-                        "change": r.elo - before, "level": level(r.elo)})
+                        "change": r.elo - before})
     return m, changes
