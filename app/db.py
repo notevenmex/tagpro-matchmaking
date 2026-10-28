@@ -117,11 +117,33 @@ class QueueEntry(Base):
 
 
 class QueueBan(Base):
-    """Short ban from queueing, given for missing a ready check."""
+    """A player's current ban from queueing (see restrictions.py). One row per player; the longest ban wins."""
     __tablename__ = "queue_bans"
     id: Mapped[int] = mapped_column(primary_key=True)
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), unique=True)
     until: Mapped[float] = mapped_column(Float)
+    kind: Mapped[str] = mapped_column(String(16), default="ready_check")  # ready_check | leaver | admin
+    reason: Mapped[str] = mapped_column(String(200), default="")  # shown to the player
+
+
+class Strike(Base):
+    """One offence (a missed ready check or leaving a match). Strikes close together make cooldowns longer."""
+    __tablename__ = "strikes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
+    kind: Mapped[str] = mapped_column(String(16))  # ready_check | leaver
+    at: Mapped[float] = mapped_column(Float)
+    lobby_id: Mapped[int | None] = mapped_column(ForeignKey("lobbies.id"), nullable=True)
+
+
+class LeaverFlag(Base):
+    """A captain (or an admin) saying a player left or didn't show up. Both captains, or one admin, confirm it."""
+    __tablename__ = "leaver_flags"
+    __table_args__ = (UniqueConstraint("lobby_id", "player_id", "flagged_by"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lobby_id: Mapped[int] = mapped_column(ForeignKey("lobbies.id"))
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
+    flagged_by: Mapped[str] = mapped_column(String(8))  # red | blue | admin
 
 
 class Lobby(Base):

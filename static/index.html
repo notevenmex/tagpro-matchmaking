@@ -360,7 +360,9 @@ dialog.pop::backdrop{background:rgba(8,8,12,.55);-webkit-backdrop-filter:blur(6p
       <p>Log in with Discord, then register your TagPro name and the position you play most.</p>
       <h2>Teams and ratings</h2>
       <ul>
-        <li>Hit <b>Find match</b>. When 8 players are queued, everyone gets 30 seconds to accept. Missing or declining the ready check locks you out of the queue for 5 minutes.</li>
+        <li>Hit <b>Find match</b>. When 8 players are queued, everyone gets 30 seconds to accept. Missing or declining the ready check locks you out of the queue: 5 minutes the first time, then 15 minutes, 1 hour and 24 hours if it keeps happening the same day.</li>
+        <li>Leaving a match or not showing up, once both captains report it, costs 25 Elo and a longer lockout, and the match is called off for everyone else.</li>
+        <li>If you wait 45 minutes without the queue filling, you're taken out of it. Just queue again.</li>
         <li>The two highest-rated players captain. The lower-rated captain picks first, in 1-2-2-1 order (red, blue, blue, red, red, blue). Aim for two offense and two defense.</li>
         <li>Five maps are drawn by vote chance. Captains take turns banning, blue first, until one is left. Then everyone votes on a server and the red captain shares the group link.</li>
         <li>Ratings work like FACEIT: everyone starts at 1000 Elo, and your Elo sets your skill level from 1 to 10 (level 10 is 2001+).</li>
@@ -682,7 +684,10 @@ function renderDock(){
     d.append(info("Ranked queue",`${n}/${P.size} searching`),pips,acts); acts.append(h("button",{class:"pill primary",onclick:()=>go("home")},"Register to play")); return;
   }
   if(P.banned_until && P.banned_until>nowS()){
-    d.append(info("Queue locked","Missed ready check · ",h("span",{"data-deadline":P.banned_until},fmt(P.banned_until-nowS()))),acts);
+    const why={ready_check:"Missed ready check",leaver:"Left a match",admin:"Banned by an admin"}[P.ban_kind]||"Queue locked";
+    const lock=info("Queue locked",why+" · ",P.banned_until-nowS()>3e8?"permanent":h("span",{"data-deadline":P.banned_until},fmt(P.banned_until-nowS())));
+    if(P.ban_reason) lock.title=P.ban_reason;
+    d.append(lock,acts);
     acts.append(h("button",{class:"pill",disabled:true},"Find match")); return;
   }
   if(P.queue_block){ // captains wait for a verified score before queueing again

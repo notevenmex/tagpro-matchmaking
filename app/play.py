@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from . import auth
+from . import auth, restrictions
 from .db import (GroupJob, Lobby, LobbyPlayer, Map, MapVote, Player, QueueBan, QueueEntry, Rating, Season,
                  SessionLocal, get_db)
 from .rating import START_ELO, level
@@ -36,7 +36,6 @@ READY_SECONDS = _int("READY_SECONDS", 30)
 PICK_SECONDS = _int("PICK_SECONDS", 30)          # per pick, then the best-rated player left is auto-picked
 BAN_SECONDS = _int("BAN_SECONDS", 30)            # per ban, then a random map is banned
 VOTE_SECONDS = _int("VOTE_SECONDS", 20)
-QUEUE_BAN_MINUTES = _int("QUEUE_BAN_MINUTES", 5)  # for missing or declining a ready check
 MAP_POOL_SIZE = _int("MAP_POOL_SIZE", 5)
 CAPTAIN_MODE = os.getenv("CAPTAIN_MODE", "top")  # top | random
 SERVERS = [s.strip() for s in os.getenv("SERVERS", "US East,US Central,US West,Europe").split(",") if s.strip()]
@@ -53,6 +52,7 @@ clock = time.time  # tests replace this to move time forward
 rng = random.Random()
 
 router = APIRouter()
+router.include_router(restrictions.router)
 
 
 # ---------- helpers ----------
@@ -95,14 +95,6 @@ def turn(db: Session, lobby: Lobby) -> str | None:
     return None
 
 
-def _ban_from_queue(db: Session, player_id: int, until: float):
-    b = db.scalar(select(QueueBan).where(QueueBan.player_id == player_id))
-    if b:
-        b.until = max(b.until, until)
-    else:
-        db.add(QueueBan(player_id=player_id, until=until))
-
-
 # ---------- state transitions ----------
 def try_pop(db: Session):
     """Start a lobby for every full group of QUEUE_SIZE players, oldest first."""
@@ -123,12 +115,12 @@ def try_pop(db: Session):
 
 
 def fail_ready_check(db: Session, lobby: Lobby, offenders: set[int], why: str):
-    """Cancel the lobby, ban the offenders for a few minutes, and put everyone else back in the queue."""
+    """Cancel the lobby, give the offenders a cooldown, and put everyone else back in the queue."""
     t = clock()
     names = []
     for lp, p in _lobby_players(db, lobby):
         if lp.player_id in offenders:
-            _ban_from_queue(db, lp.player_id, t + QUEUE_BAN_MINUTES * 60)
+            restrictions.penalize_ready_check(db, lp.player_id, lobby.id)
             names.append(p.tagpro_name)
         else:
             db.add(QueueEntry(player_id=lp.player_id, joined_at=lp.joined_at))
@@ -240,6 +232,8 @@ def tick(db: Session) -> bool:
     if auth.DEV_LOGIN:
         changed = _bot_moves(db, t) or changed
     if db.execute(delete(QueueBan).where(QueueBan.until <= t)).rowcount:
+        changed = True
+    if restrictions.expire_queue(db):
         changed = True
     return changed
 
@@ -385,7 +379,6 @@ def play_state(request: Request, db: Session = Depends(get_db)):
     t = clock()
     queue = db.execute(select(QueueEntry, Player.tagpro_name).join(Player, QueueEntry.player_id == Player.id)
                        .order_by(QueueEntry.joined_at)).all()
-    ban = db.scalar(select(QueueBan.until).where(QueueBan.player_id == me.id, QueueBan.until > t)) if me else None
     lobby = _my_lobby(db, me) if me else None
     live = db.scalars(select(Lobby).where(Lobby.status.in_(PRE_GAME + ("in_progress", "disputed")))
                       .order_by(Lobby.id.desc()).limit(10)).all()
@@ -394,7 +387,7 @@ def play_state(request: Request, db: Session = Depends(get_db)):
     return {"now": t, "size": QUEUE_SIZE, "dev": auth.DEV_LOGIN,
             "queue": [name for _, name in queue],
             "in_queue": mine is not None, "queued_at": mine.joined_at if mine else None,
-            "banned_until": ban,
+            **(restrictions.ban_info(db, me.id) if me else {"banned_until": None, "ban_kind": None, "ban_reason": None}),
             "queue_block": queue_block(db, me.id) if me else None,  # captains waiting on a verified score
             "lobby": lobby_view(db, lobby, me) if lobby else None,
             "live": [{"id": x.id, "status": x.status} for x in live]}
@@ -436,11 +429,7 @@ def _done(db: Session):
 def join_queue(p: Player = Depends(auth.require_player), db: Session = Depends(get_db)):
     with LOCK:
         t = clock()
-        ban = db.scalar(select(QueueBan.until).where(QueueBan.player_id == p.id, QueueBan.until > t))
-        if ban:
-            raise HTTPException(403, f"You missed a ready check. You can queue again in {int(ban - t) // 60 + 1} min.")
-        if _pregame_lobby(db, p.id):
-            raise HTTPException(409, "You're already in a match.")
+        restrictions.check_can_queue(db, p)
         from .reporting import queue_block
         blocked = queue_block(db, p.id)  # captains wait for a verified score; everyone else can go
         if blocked:

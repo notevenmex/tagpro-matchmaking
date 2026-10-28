@@ -8,7 +8,7 @@ os.environ.setdefault("ADMIN_DISCORD_IDS", "admin-1")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import play, seed  # noqa: E402
+from app import play, restrictions, seed  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -97,7 +97,7 @@ def test_ready_check_timeout_bans_and_requeues():
     late = cs[7].get("/api/play").json()
     assert late["banned_until"] and not late["in_queue"]
     assert cs[7].post("/api/queue").status_code == 403
-    advance(play.QUEUE_BAN_MINUTES * 60 + 1)
+    advance(restrictions.READY_CHECK_COOLDOWNS[0] * 60 + 1)
     assert cs[7].post("/api/queue").status_code == 200
     for c in cs:
         c.delete("/api/queue")
@@ -111,7 +111,7 @@ def test_decline_and_timeouts_with_bots():
     assert L["status"] == "ready_check"
     assert me.post(f"/api/lobbies/{L['id']}/decline").status_code == 200
     assert lobby(me)["status"] == "cancelled" and me.get("/api/play").json()["banned_until"]
-    advance(play.QUEUE_BAN_MINUTES * 60 + 1)  # ban ends; the 7 bots are still queued
+    advance(restrictions.READY_CHECK_COOLDOWNS[0] * 60 + 1)  # ban ends; the 7 bots are still queued
 
     me.post("/api/queue")
     L = lobby(me)
