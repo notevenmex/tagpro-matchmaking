@@ -131,3 +131,49 @@ def test_leaver_needs_both_captains_and_voids_the_match():
     caps["red"].post(f"/api/lobbies/{L['id']}/leaver", json={"name": leaver})
     assert by_name[other].post("/api/queue").status_code == 200  # everyone else can queue right away
     clear_queue()
+
+
+def test_alt_accounts_queue_one_at_a_time_and_share_bans():
+    clear_queue()
+    c = player(300)  # registers Queuer300 on Discord q-300
+    main = c.get("/api/me").json()["player"]["name"]
+    assert c.post("/api/register", json={"tagpro_name": "AltOf300", "position": "defense"}).status_code == 201
+    me = c.get("/api/me").json()
+    assert me["player"]["name"] == "AltOf300" and me["accounts"] == [main, "AltOf300"]
+
+    assert c.post("/api/queue").status_code == 200  # the alt queues
+    assert c.post("/api/me/account", json={"name": main}).json()["name"] == main
+    r = c.post("/api/queue")
+    assert r.status_code == 409 and "AltOf300" in r.json()["detail"]  # only one account at a time
+    c.post("/api/me/account", json={"name": "AltOf300"})
+    c.delete("/api/queue")
+    c.post("/api/me/account", json={"name": main})
+    assert c.post("/api/queue").status_code == 200
+
+    # a ban on one account covers the others
+    admin().post("/api/admin/bans", json={"name": "AltOf300", "minutes": 30, "reason": "smurfing"})
+    c.post("/api/me/account", json={"name": "AltOf300"})
+    c.delete("/api/queue")
+    c.post("/api/me/account", json={"name": main})
+    c.delete("/api/queue")
+    r = c.post("/api/queue")
+    assert r.status_code == 403 and "smurfing" in r.json()["detail"]
+    assert c.get("/api/play").json()["banned_until"]
+    assert c.post("/api/me/account", json={"name": "Warriors"}).status_code == 404  # not yours
+
+    for i in range(2, 4):  # the cap is MAX_ACCOUNTS
+        c.post("/api/register", json={"tagpro_name": f"Alt{i}Of300", "position": "offense"})
+    assert len(c.get("/api/me").json()["accounts"]) == 3
+    admin().delete("/api/admin/bans/AltOf300")
+    clear_queue()
+
+
+def test_players_choose_and_change_position():
+    c = player(310)
+    assert c.get("/api/me").json()["player"]["position"] == "offense"
+    assert c.patch("/api/me", json={"position": "flex"}).json()["position"] == "flex"
+    assert c.patch("/api/me", json={"position": "goalie"}).status_code == 422
+    assert c.patch("/api/me", json={"server": "Chord"}).json() == {**c.get("/api/me").json()["player"], "server": "Chord"}
+    assert c.get("/api/me").json()["player"]["position"] == "flex"  # untouched by the server change
+    assert c.post("/api/register", json={"tagpro_name": "FlexAlt310", "position": "flex"}).status_code == 201
+    assert TestClient(app).patch("/api/me", json={"position": "defense"}).status_code == 401

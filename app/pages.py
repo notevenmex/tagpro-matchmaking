@@ -10,7 +10,7 @@ from .db import SiteText, get_db, now
 
 DEFAULT_RULES = """\
 ## Joining a pug
-Log in with Discord, then register your TagPro name and the position you play most.
+Log in with Discord, then register your TagPro name and the position you play: Offense, Defense or Flex if you're happy with either. You can change it any time from the Home page, and captains see it in the draft. You can also add alt accounts and switch between them; only one of your accounts can be in the queue at a time.
 
 ## Teams and ratings
 - Hit **Find match**. When 8 players are queued, everyone gets 30 seconds to accept. Missing or declining the ready check locks you out of the queue: 5 minutes the first time, then 15 minutes, 1 hour and 24 hours if it keeps happening the same day.

@@ -54,10 +54,11 @@ class SiteText(Base):
 class Player(Base):
     __tablename__ = "players"
     id: Mapped[int] = mapped_column(primary_key=True)
-    discord_id: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True)
+    # One Discord login can own several TagPro names (alts); see auth.MAX_ACCOUNTS
+    discord_id: Mapped[str | None] = mapped_column(String(32), index=True, nullable=True)
     tagpro_name: Mapped[str] = mapped_column(String(24), unique=True)
     reddit_name: Mapped[str | None] = mapped_column(String(24), nullable=True)
-    position: Mapped[str] = mapped_column(String(8), default="offense")  # main position: offense | defense
+    position: Mapped[str] = mapped_column(String(8), default="offense")  # preferred: offense | defense | flex
     server: Mapped[str | None] = mapped_column(String(24), nullable=True)
     tags: Mapped[list] = mapped_column(JSON, default=list)  # e.g. ["OG", "S3 50", "S3 ★"]
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)

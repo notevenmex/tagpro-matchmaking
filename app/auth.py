@@ -76,9 +76,21 @@ def is_admin(discord_id: str | None, player: Player | None) -> bool:
     return bool(discord_id) and (discord_id in ADMIN_IDS or bool(player and player.is_admin))
 
 
+MAX_ACCOUNTS = int(os.getenv("MAX_ACCOUNTS", 3))  # TagPro names (main + alts) per Discord login
+
+
+def accounts(db: Session, discord_id: str | None) -> list[Player]:
+    """Every TagPro name registered to this Discord login, oldest first."""
+    if not discord_id:
+        return []
+    return list(db.scalars(select(Player).where(Player.discord_id == discord_id).order_by(Player.id)))
+
+
 def current_player(request: Request, db: Session = Depends(get_db)) -> Player | None:
-    did = request.session.get("discord_id")
-    return db.scalar(select(Player).where(Player.discord_id == did)) if did else None
+    """The account this login is playing as: the one picked with /api/me/account, else the first."""
+    mine = accounts(db, request.session.get("discord_id"))
+    pick = request.session.get("player_id")
+    return next((p for p in mine if p.id == pick), mine[0] if mine else None)
 
 
 def require_player(request: Request, db: Session = Depends(get_db)) -> Player:

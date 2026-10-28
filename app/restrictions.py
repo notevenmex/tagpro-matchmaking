@@ -44,8 +44,18 @@ def _is_bot(db: Session, player_id: int) -> bool:
     return auth.DEV_LOGIN and db.scalar(select(Player.discord_id).where(Player.id == player_id)) is None
 
 
+def linked_ids(db: Session, player_id: int) -> list[int]:
+    """This account plus any alts on the same Discord login."""
+    did = db.scalar(select(Player.discord_id).where(Player.id == player_id))
+    if did is None:
+        return [player_id]
+    return list(db.scalars(select(Player.id).where(Player.discord_id == did)))
+
+
 def active_ban(db: Session, player_id: int) -> QueueBan | None:
-    return db.scalar(select(QueueBan).where(QueueBan.player_id == player_id, QueueBan.until > play.clock()))
+    """The longest active ban on this account or any of its alts, so a ban can't be dodged on an alt."""
+    return db.scalar(select(QueueBan).where(QueueBan.player_id.in_(linked_ids(db, player_id)),
+                                            QueueBan.until > play.clock()).order_by(QueueBan.until.desc()).limit(1))
 
 
 def ban(db: Session, player_id: int, seconds: float, kind: str, reason: str) -> QueueBan:
@@ -57,7 +67,7 @@ def ban(db: Session, player_id: int, seconds: float, kind: str, reason: str) -> 
         db.add(b)
     elif until >= b.until or b.until <= play.clock():
         b.until, b.kind, b.reason = until, kind, reason
-    db.execute(delete(QueueEntry).where(QueueEntry.player_id == player_id))
+    db.execute(delete(QueueEntry).where(QueueEntry.player_id.in_(linked_ids(db, player_id))))
     db.flush()
     return b
 
@@ -123,6 +133,16 @@ def check_can_queue(db: Session, p: Player):
         raise HTTPException(403, ban_message(b))
     if play._pregame_lobby(db, p.id):
         raise HTTPException(409, "You're already in a match.")
+    # Alts are allowed, but only one of a person's accounts can be in the queue or a match at a time.
+    from .reporting import queue_block
+    for other in linked_ids(db, p.id):
+        if other == p.id:
+            continue
+        name = db.scalar(select(Player.tagpro_name).where(Player.id == other))
+        if db.scalar(select(QueueEntry).where(QueueEntry.player_id == other)):
+            raise HTTPException(409, f"Your other account {name} is already in the queue. Leave with it first.")
+        if play._pregame_lobby(db, other) or queue_block(db, other):
+            raise HTTPException(409, f"Your other account {name} is in a match that hasn't finished yet.")
 
 
 def ban_info(db: Session, player_id: int) -> dict:
