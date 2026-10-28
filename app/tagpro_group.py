@@ -17,7 +17,10 @@ from dataclasses import dataclass, field
 log = logging.getLogger("rankedpugs")
 
 TAGPRO_URL = os.getenv("TAGPRO_URL", "https://tagpro.koalabeast.com").rstrip("/")
-GROUP_NAME = os.getenv("TAGPRO_GROUP_NAME", "Ranked PUGs #{id}")
+GROUP_NAME = os.getenv("TAGPRO_GROUP_NAME", "PUG #{id}")
+# Both teams get this name in the group. tagpro.eu lists games by team name, so it's how the site finds
+# a match's stats afterwards (see tagpro_eu.py). Keep it short and unique per match.
+TEAM_NAME = os.getenv("TAGPRO_TEAM_NAME", "PUG{id}")
 # Optional "Group Preset" to pick on the create form, by its visible label (e.g. "Competitive").
 GROUP_PRESET = os.getenv("TAGPRO_GROUP_PRESET", "").strip()
 # Optional TagPro session cookie, if groups should be owned by a TagPro account instead of a guest.
@@ -82,9 +85,16 @@ def _no_kiss() -> dict[str, str]:
     return {name.strip(): value.strip() or "true"}
 
 
-def group_settings() -> dict[str, str]:
-    """Competitive defaults + no-kiss + any overrides from TAGPRO_GROUP_SETTINGS (a JSON object)."""
+def team_name(lobby_id: int) -> str:
+    return TEAM_NAME.format(id=lobby_id)[:30]
+
+
+def group_settings(lobby_id: int | None = None) -> dict[str, str]:
+    """Competitive defaults + no-kiss + the match's team names + any overrides from TAGPRO_GROUP_SETTINGS
+    (a JSON object)."""
     out = {**COMPETITIVE_SETTINGS, **_no_kiss()}
+    if lobby_id is not None:
+        out["redTeamName"] = out["blueTeamName"] = team_name(lobby_id)
     extra = os.getenv("TAGPRO_GROUP_SETTINGS", "").strip()
     if extra:
         out.update({str(k): str(v) for k, v in json.loads(extra).items()})
@@ -275,7 +285,7 @@ class PlaywrightGroupCreator:
         return page.url.split("#")[0].rstrip("/")
 
     async def _configure(self, page, spec: GroupSpec):
-        settings = group_settings()
+        settings = group_settings(spec.lobby_id)
         await _emit_settings(page, {"serverSelect": "true", "selectMaps": "true", **settings})
         await page.wait_for_timeout(500)  # let the server/map dropdowns fill in
         if not _no_kiss():

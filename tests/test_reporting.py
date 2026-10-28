@@ -69,7 +69,8 @@ def test_matching_reports_verify_and_free_the_captains():
 
     assert report(blue_cap, lid, 3, 1).json()["result"] == "verified"
     score = blue.get(f"/api/lobbies/{lid}/score").json()
-    assert score["final"] == {"red_score": 3, "blue_score": 1, "winner": "red", "verified_by": "captains"}
+    assert score["final"] == {"red_score": 3, "blue_score": 1, "winner": "red", "verified_by": "captains",
+                              "tagpro_eu": None}
     assert games(f"Rep{_n}x0") == 1 and games(f"Rep{_n}x7") == 1  # Elo was updated for all 8
 
     assert report(red_cap, lid, 3, 1).status_code == 409  # already finished
@@ -97,7 +98,7 @@ def test_mismatch_goes_to_admin_dispute_queue():
     assert admin.post(f"/api/lobbies/{lid}/resolve", json={"red_score": 1, "blue_score": 3}).status_code == 200
     assert all(x["id"] != lid for x in admin.get("/api/disputes").json())
     final = red_cap.get(f"/api/lobbies/{lid}/score").json()["final"]
-    assert final == {"red_score": 1, "blue_score": 3, "winner": "blue", "verified_by": "admin"}
+    assert final == {"red_score": 1, "blue_score": 3, "winner": "blue", "verified_by": "admin", "tagpro_eu": None}
     assert red_cap.post("/api/queue").status_code == 200
     red_cap.delete("/api/queue")
 
