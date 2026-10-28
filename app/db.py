@@ -294,6 +294,22 @@ class MatchNotice(Base):
     sent_at: Mapped[float] = mapped_column(Float, default=0)
 
 
+class RunbackVote(Base):
+    """The post-match "Salty Runback?" vote for a finished lobby (see runback.py).
+
+    status: open -> passed (all players said yes; new_lobby_id is the rematch) or failed (someone said
+    no, time ran out, or a player couldn't play it). votes maps player id (as a string) to True/False.
+    """
+    __tablename__ = "runback_votes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lobby_id: Mapped[int] = mapped_column(ForeignKey("lobbies.id"), unique=True)
+    status: Mapped[str] = mapped_column(String(8), default="open")
+    deadline: Mapped[float] = mapped_column(Float)
+    votes: Mapped[dict] = mapped_column(JSON, default=dict)
+    new_lobby_id: Mapped[int | None] = mapped_column(ForeignKey("lobbies.id"), nullable=True)
+    note: Mapped[str] = mapped_column(String(200), default="")  # why it failed
+
+
 class VoiceRoom(Base):
     """A temporary Discord voice channel for one team of a lobby (see voice.py).
 

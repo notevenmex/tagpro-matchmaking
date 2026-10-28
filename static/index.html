@@ -242,6 +242,9 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .rrow .mine{display:flex;flex-direction:column;gap:2px;font-size:12px}
 @media (max-width:560px){.rrow{grid-template-columns:22px 48px 1fr auto}.rrow .thumb img,.rrow .thumb svg{width:48px;height:36px}.rrow .mine{grid-column:3/-1;flex-direction:row;align-items:center;gap:8px}}
 .rate-after{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--panel-2);border-radius:12px;padding:10px 14px;margin:0 0 14px;font-size:14px}
+.runback{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--panel-2);border-radius:12px;padding:10px 14px;margin:0 0 10px;font-size:14px}
+.runback b{font-size:15px}
+.runback .grow{flex:1 1 220px}
 .rate-after select{font:inherit;background:var(--input);color:var(--text);border:0;border-radius:6px;padding:4px 6px}
 .meta-row{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px;font-size:14px}
 .meta-row label{display:flex;align-items:center;gap:6px}
@@ -657,6 +660,23 @@ function renderRatings(){
       h("label",{class:"mine"},h("span",{class:"sub"},"Yours"),ratingSelect(m)));
   }));
 }
+// "Salty Runback?": all 8 players say yes and the same teams play the same map again
+function runbackBox(L){
+  const R=L.runback; if(!R) return null;
+  const box=h("div",{class:"runback"});
+  if(R.status==="passed"){ box.append(h("b",{},"Runback on!"),h("span",{class:"muted grow"},`All ${R.size} said yes. Same teams, same map: match #${R.new_lobby_id}.`)); return box; }
+  if(R.status==="failed"){ if(!L.me) return null; box.append(h("b",{},"No runback this time."),h("span",{class:"muted grow"},R.note)); return box; }
+  const left=h("span",{class:"secs","data-deadline":R.deadline,"aria-label":"Time left to vote"},fmt(R.deadline-nowS()));
+  const tally=h("span",{class:"muted"},`${R.yes}/${R.size} want it`);
+  if(R.can_vote&&R.my_vote==null){
+    box.append(h("div",{class:"grow"},h("b",{},"Salty Runback?"),h("div",{class:"muted"},`Same teams on ${L.map||"the same map"}. It only happens if all ${R.size} say yes.`)),
+      tally,left,
+      h("button",{class:"pill primary",onclick:()=>act(L,"runback",{yes:true})},"Yes"),
+      h("button",{class:"pill",onclick:()=>act(L,"runback",{yes:false})},"No"));
+  } else box.append(h("b",{class:"grow"},R.my_vote?"You’re in. Waiting on the others…":"Salty Runback vote"),tally,left);
+  return box;
+}
+
 // asked once at the end of each match; skipping is remembered per match in this browser
 function rateAfterMatch(L){
   const m=MAPS.find(x=>x.name===L.map); if(!m||!L.me||!ME.player) return null;
@@ -1015,6 +1035,7 @@ function renderDock(){
     return;
   }
   if(L && PLAYED.includes(L.status)) acts.append(h("button",{class:"pill ghost",onclick:openLobby},`Match #${L.id}`));
+  if(L && L.runback && L.runback.can_vote && L.runback.my_vote==null) acts.append(h("button",{class:"pill primary",onclick:openLobby},"Salty Runback?"));
   if(!ME.logged_in){
     d.append(info("Ranked queue",`${n}/${P.size} searching`),pips,acts); acts.append(h("a",{class:"pill primary",href:"/auth/login"},"Log in to play")); return;
   }
@@ -1172,10 +1193,10 @@ function viewMatch(L){
     f.addEventListener("submit",async e=>{e.preventDefault(); await act(L,"group",{link:inp.value}); GROUP_DRAFT="";});
     group.append(h("span",{class:"muted"},L.group_link?"Wrong link? Paste the right one.":`You’re the red captain: create a private group on TagPro and paste its link here. Name both teams ${L.team_name} so the score can be read from tagpro.eu.`),f);
   } else if(!L.group_link) group.append(h("span",{class:"muted"},`Waiting for ${red?red.name:"the red captain"} to create the TagPro group…`));
-  const sub={in_progress:"Good luck, have fun.",disputed:"The captains reported different scores.",finished:"Thanks for playing."}[L.status]||"Teams and map are locked in.";
+  const sub={in_progress:"Good luck, have fun.",disputed:"The captains reported different scores.",finished:"Thanks for playing."}[L.status]||(L.runback_of?`Salty Runback of match #${L.runback_of}. Same teams, same map.`:"Teams and map are locked in.");
   return [
     popHead(L,STEP[L.status],sub),
-    h("div",{class:"pop-body"},hero,scoreBox(L),L.status==="finished"&&rateAfterMatch(L),h("div",{class:"teams2"},team("red"),team("blue")),L.me&&!["disputed","finished"].includes(L.status)&&group),
+    h("div",{class:"pop-body"},hero,scoreBox(L),L.status==="finished"&&runbackBox(L),L.status==="finished"&&rateAfterMatch(L),h("div",{class:"teams2"},team("red"),team("blue")),L.me&&!["disputed","finished"].includes(L.status)&&group),
     h("div",{class:"pop-foot"},h("button",{class:"pill",onclick:dismissLobby},"Close")),
   ];
 }
