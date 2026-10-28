@@ -365,6 +365,7 @@ def lobby_view(db: Session, lobby: Lobby, me: Player | None) -> dict:
         "group_bot": db.scalar(select(GroupJob.status).where(GroupJob.lobby_id == lobby.id)),  # see autogroup.py
         "team_name": tagpro_eu.team_name(lobby.id),  # what to call both teams so tagpro.eu can find the game
         "score": score_view(db, lobby, me),
+        "match_id": lobby.match_id,  # its Post Match page once the score is in (postmatch.py)
         "runback": runback.view(db, lobby, me),  # the post-match "Salty Runback?" vote
         "runback_of": runback.runback_of(db, lobby.id),
         "voice_link": voice.voice_links(db, lobby.id).get(mine.team) if mine and mine.team else None,  # voice.py

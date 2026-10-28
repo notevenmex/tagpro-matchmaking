@@ -87,6 +87,14 @@ class Player(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class PlayerPrefs(Base):
+    """A player's own display settings: whether their profile lists their recent matches, and how many."""
+    __tablename__ = "player_prefs"
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), primary_key=True)
+    show_recent: Mapped[bool] = mapped_column(Boolean, default=True)
+    recent_count: Mapped[int] = mapped_column(Integer, default=10)
+
+
 class Rating(Base):
     """One FACEIT-style Elo per player, per season (see rating.py)."""
     __tablename__ = "ratings"

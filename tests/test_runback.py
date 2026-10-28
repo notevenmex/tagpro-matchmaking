@@ -120,3 +120,32 @@ def test_no_runback_when_someone_is_already_in_another_match():
 def test_only_players_vote():
     lid, _ = finished_lobby()
     assert client("rb-outsider", "Outsider").post(f"/api/lobbies/{lid}/runback", json={"yes": True}).status_code in (403, 401)
+
+
+def test_post_match_page_and_recent_matches():
+    lid, players = finished_lobby()
+    with SessionLocal() as db:
+        lobby = db.get(Lobby, lid)
+        mid = lobby.match_id
+        names = [p.tagpro_name for _, p in play._lobby_players(db, lobby)]
+    page = players[0].get(f"/api/matches/{mid}").json()
+    assert page["lobby_id"] == lid and (page["red_score"], page["blue_score"], page["winner"]) == (3, 1, "red")
+    assert page["verified_by"] == "captains" and page["map"] and page["server"] == "US East"
+    assert len(page["teams"]["red"]) == 4 and page["teams"]["red"][0]["is_captain"]
+    assert page["runback"]["status"] == "open" and page["me"]["team"] in ("red", "blue")
+    assert client().get(f"/api/matches/{mid}").json()["me"] is None  # public, archivable page
+    assert client().get(f"/match/{mid}", follow_redirects=False).headers["location"] == f"/#match/{mid}"
+    assert client().get("/api/matches/999999").status_code == 404
+    assert players[0].get("/api/play").json()["lobby"]["match_id"] == mid
+
+    # the profile lists the match and links to it; the player can hide the list or change its length
+    prof = client().get(f"/api/players/{names[0]}").json()
+    assert prof["recent"][0]["match_id"] == mid and prof["recent"][0]["red_score"] == 3 and not prof["own"]
+    assert players[0].patch("/api/me/match-history", json={"show": False, "count": 5}).json() == {"show": False, "count": 5}
+    hidden = client().get(f"/api/players/{names[0]}").json()
+    assert hidden["recent_hidden"] and hidden["recent"] == []
+    own = players[0].get(f"/api/players/{names[0]}").json()
+    assert own["own"] and own["recent"] and own["recent_count"] == 5
+    assert players[0].patch("/api/me/match-history", json={"count": 7}).status_code == 422
+    players[0].patch("/api/me/match-history", json={"show": True})
+    assert client().get(f"/api/players/{names[0]}").json()["recent"]

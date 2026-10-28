@@ -11,8 +11,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, maps_admin, pages, play, reporting, runback, titles
-from .db import Base, Map, MapVote, Match, MatchPlayer, Player, Rating, Season, engine, get_db
+from . import auth, maps_admin, pages, play, postmatch, reporting, runback, titles
+from .db import Base, Map, MapVote, Player, Rating, Season, engine, get_db
 from .rating import PLACEMENT_MULTIPLIER, MIN_GAMES, PLACEMENT_GAMES, K, START_ELO, rating_out, record_match
 
 SESSION_SECRET = os.getenv("SESSION_SECRET")
@@ -26,6 +26,7 @@ app.include_router(auth.router)
 app.include_router(play.router)
 app.include_router(reporting.router)
 app.include_router(runback.router)
+app.include_router(postmatch.router)
 app.include_router(pages.router)
 app.include_router(maps_admin.router)
 app.include_router(titles.router)
@@ -179,25 +180,16 @@ def players(q: str = "", db: Session = Depends(get_db)):
 
 
 @app.get("/api/players/{name}")
-def player_detail(name: str, db: Session = Depends(get_db)):
+def player_detail(name: str, request: Request, db: Session = Depends(get_db)):
     p = find_player(db, name)
     if not p:
         raise HTTPException(404, f"No player named “{name}”.")
     s = active_season(db)
     r = db.scalar(select(Rating).where(Rating.player_id == p.id, Rating.season_id == s.id))
-    placed = bool(r) and r.games >= PLACEMENT_GAMES
-    recent = db.execute(
-        select(MatchPlayer, Match, Map.name).join(Match, MatchPlayer.match_id == Match.id)
-        .outerjoin(Map, Match.map_id == Map.id).where(MatchPlayer.player_id == p.id)
-        .order_by(Match.played_at.desc()).limit(10)
-    ).all()
     return {**player_out(p, titles.titles_by_player(db, [p.id])[p.id]),
             "rating": rating_out(r),
-            # Elo changes stay hidden until placements are done, like the Elo itself
-            "recent": [{"map": mname, "team": mp.team, "position": mp.position, "won": mp.team == m.winner,
-                        "change": mp.elo_after - mp.elo_before if placed else None,
-                        "played_at": m.played_at.isoformat()}
-                       for mp, m, mname in recent]}
+            # recent matches, each linking to its Post Match page; the player can hide them (postmatch.py)
+            **postmatch.recent_matches(db, p, request.session.get("discord_id"))}
 
 
 # ---------- maps ----------
