@@ -104,6 +104,8 @@ main{padding:22px 12px 60px;max-width:1360px;margin:0 auto}
 .livem .lm .top .elo small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--muted)}
 .livem .lm .teams{display:grid;grid-template-columns:1fr 1fr;gap:8px;color:var(--muted)}
 .livem .lm .teams div b{display:block;font-size:12px}
+.livem .lm .spec{display:flex;align-items:center;gap:10px;margin-top:4px;padding-top:8px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.livem .lm .spec .pill{flex:none;text-decoration:none}
 .qpanel{background:var(--panel);border-radius:6px;padding:16px 18px;margin-top:40px;display:grid;grid-template-columns:auto 1fr auto;gap:6px 22px;align-items:center}
 .qpanel h2{font-family:var(--display);font-weight:700;font-size:24px;margin:0;grid-column:1/-1}
 .qpanel .count{font-family:var(--display);font-weight:700;font-size:44px;line-height:1}
@@ -993,7 +995,9 @@ function renderLiveMatches(){
     return h("article",{class:"lm","aria-label":`Match ${m.id}`},pic,h("div",{class:"body"},
       h("div",{class:"top"},h("b",{},m.map||"Map veto pending"),h("span",{class:"elo",title:"Average Elo of all 8 players"},m.avg_elo??"–",h("small",{}," avg Elo"))),
       h("div",{class:"sub",style:"color:var(--muted)"},`Match #${m.id}${m.server?" · "+m.server:""}`),
-      h("div",{class:"teams"},team("red"),team("blue"))));
+      h("div",{class:"teams"},team("red"),team("blue")),
+      m.group_link?h("div",{class:"spec"},h("a",{class:"pill",href:m.group_link,target:"_blank",rel:"noopener"},"Spectate"),
+        h("span",{},"Spectators: no chat during the game, or the bot removes you.")):null));
   })));
 }
 function renderQueuePanel(){
